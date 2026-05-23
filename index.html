@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能写作助手 2.1</title>
+
+    <script src="js/marked.min.js"></script>
+    <link rel="stylesheet" href="css/github.min.css">
+    <script src="js/highlight.min.js"></script>
+    <link rel="stylesheet" href="css/katex.min.css">
+    <script src="js/katex.min.js"></script>
+    <script src="js/auto-render.min.js"></script>
+    <script src="js/mermaid.min.js"></script>
+
+    <link rel="stylesheet" href="css/styles.css">
+
+</head>
+
+<body>
+
+    <div class="sidebar" id="app-sidebar">
+        <div class="sidebar-header">章节大纲</div>
+        <div class="outline-list" id="outline-list"></div>
+    </div>
+
+    <div class="main-content">
+        <div class="top-bar">
+            <div class="title">
+                <button class="btn-toggle-sidebar" onclick="toggleSidebar()" title="展开/收起大纲">☰</button>
+                文章正文
+            </div>
+            <div class="tools-basic">
+			    <button id="toggle-mode-btn" onclick="toggleMode()" title="编辑模式可以进行人工编辑和利用AI进行局部修改，渲染模式不可人工编辑和AI局部修改，但是可以全文修改">👁️ 切换渲染模式</button>
+                <div class="dropdown" style="display: inline-block; position: relative;">
+                    <button class="dropbtn" onclick="toggleDropdown()">⬇️ 下载 ▼</button>
+                    <div class="dropdown-content" id="downloadDropdown">
+                        <a href="#" onclick="downloadMarkdown(); return false;">下载为 Markdown (.md)</a>
+                        <a href="#" onclick="downloadDocx(); return false;">下载为 Word (.docx)</a>
+                    </div>
+                </div>
+                <button onclick="openModal('history-modal')">🕒 历史版本</button>
+                <button onclick="undo()">↶ 撤回</button>
+                <button onclick="clearContent()">🗑️ 清空</button>
+                <button onclick="toggleTheme()" id="theme-btn" title="切换深色/浅色模式">🌓 暗色</button>
+            </div>
+        </div>
+
+        <div class="editor-container">
+            <textarea id="editor" class="editor-textarea" oninput="handleInput()"></textarea>
+            <div id="preview" class="editor-preview markdown-body"></div>
+            <div class="status-bar">
+                <span id="word-count">字数: 0</span>
+                <span id="save-time">最后保存: -</span>
+            </div>
+        </div>
+
+        <div class="ai-tools">
+            <button class="ai-btn btn-green" onclick="setPromptMode('ai_gen')">✍️ 续写</button>
+            <button class="ai-btn btn-green" onclick="setPromptMode('rewrite')">📝 扩写</button>
+            <button class="ai-btn btn-green" onclick="setPromptMode('summarize')">📄 浓缩</button>
+            <button class="ai-btn btn-green" onclick="setPromptMode('polish')">✨ 润色</button>
+            <div style="width: 1px; height: 24px; background-color: var(--border-color); margin: 0 5px;"></div>
+            <button class="ai-btn btn-purple" onclick="openModal('replace-modal')">🔍 批量替换</button>
+            <button class="ai-btn btn-purple" onclick="openModal('ref-modal')">📚 参考资料</button>
+            <button class="ai-btn btn-purple" onclick="openModal('tech-modal')">💡 技能</button>
+            <button class="ai-btn btn-purple" onclick="openModal('sysprompt-modal')" style="display: none;">🤖 System Prompt</button>
+			<div style="width: 1px; height: 24px; background-color: var(--border-color); margin: 0 5px;"></div>
+			<button class="ai-btn btn-orange" onclick="openModal('config-modal')">⚙️ LLM配置</button>
+			<button class="ai-btn btn-orange" onclick="openModal('guide-modal')">📖 帮助</button>
+            
+        </div>
+
+        <div class="prompt-container">
+            <div class="prompt-title" style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 14px; color: var(--text-main);">AI编辑模式:</span>
+                <select id="llm-mode-select" class="btn-modal" style="padding: 4px 8px; font-weight: bold; cursor:pointer;" onchange="updateSelectionHint()">
+                    <option value="full">全文修改</option>
+                    <option value="local">局部修改</option>
+                    <option value="append">末尾追加</option>
+                </select>
+                <span id="selection-hint"></span>
+            </div>
+            <textarea id="llm-prompt" class="prompt-textarea" placeholder="请输入您的具体编辑或修改指令..."></textarea>
+            <div class="prompt-actions">
+                <div class="llm-stats-container">
+                    <div id="llm-status-icon" class="status-icon idle" onclick="showLLMDetails()" title="未调用"></div>
+                    <div class="llm-stats" id="llm-stats">
+                        <span>耗时: 0ms</span> |
+                        <span>上下文: 0 Tokens</span> |
+                        <span>输出: 0 Tokens</span>
+                    </div>
+                </div>
+                <button class="submit-btn" id="stop-btn" onclick="stopLLM()"
+                    style="display: none; background-color: #ff4d4f;">
+                    <span>停 止</span>
+                </button>
+                <button class="submit-btn" id="submit-btn" onclick="submitToLLM()">
+                    <span id="submit-text">提 交</span>
+                    <div class="loader" id="submit-loader"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 悬浮工具栏 -->
+    <div id="floating-toolbar" class="floating-toolbar">
+        <button onclick="floatingAction('polish')">✨ 润色</button>
+        <button onclick="floatingAction('rewrite')">📝 扩写</button>
+        <button onclick="floatingAction('summarize')">📄 浓缩</button>
+    </div>
+
+    <div id="modal-overlay" class="modal-overlay">
+
+        <!-- 历史版本弹窗 -->
+        <div id="history-modal" class="modal" style="display: none; width: 900px; max-width: 95vw;">
+            <div class="modal-header">
+                <span>历史版本管理</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="history-layout">
+                <div class="history-list-pane" id="history-list-container"></div>
+                <div class="history-preview-pane">
+                    <textarea id="history-detail-text" class="history-preview-textarea" readonly
+                        placeholder="点击左侧版本查看全文..."></textarea>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                        <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
+                        <button class="btn-modal btn-confirm" id="btn-restore-history"
+                            onclick="restoreSelectedHistory()" disabled>恢复此版本</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 写作技能弹窗 -->
+        <div id="tech-modal" class="modal" style="display: none; width: 850px; max-width: 95vw;">
+            <div class="modal-header">
+                <span>写作技能管理</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="history-layout">
+                <div class="history-list-pane" id="tech-list-container"></div>
+                <div class="history-preview-pane">
+                    <div class="modal-group">
+                        <label>技能名称</label>
+                        <input type="text" id="tech-title" placeholder="如：技术方案写作技能">
+                    </div>
+                    <div class="modal-group">
+                        <label>使用场景或条件</label>
+                        <input type="text" id="tech-condition" placeholder="在什么情况下触发此技能？">
+                    </div>
+                    <div class="modal-group" style="flex:1;">
+                        <label>技能描述</label>
+                        <textarea id="tech-desc" placeholder="详细的指导说明..." style="height:100%; min-height:120px;"></textarea>
+                    </div>
+                    <div class="modal-group" style="flex-direction: row; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="tech-enabled">
+                        <label for="tech-enabled" style="font-weight:bold; cursor:pointer;">调用LLM时启用此技能</label>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                        <button class="btn-modal btn-cancel" onclick="deleteTechnique()" id="btn-del-tech" style="color:red;">删除</button>
+                        <div style="display:flex; gap:10px;">
+                            <button class="btn-modal btn-cancel" onclick="addNewTechnique()">新建技能</button>
+                            <button class="btn-modal btn-confirm" onclick="saveTechnique()">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 批量替换弹窗 -->
+        <div id="replace-modal" class="modal" style="display: none;">
+            <div class="modal-header">
+                <span>批量替换文本</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="modal-group">
+                <label>查找内容</label>
+                <input type="text" id="repl-search" placeholder="输入要查找的文字 (支持正则)">
+            </div>
+            <div class="modal-group">
+                <label>替换为</label>
+                <input type="text" id="repl-target" placeholder="输入替换后的文字">
+            </div>
+            <div class="modal-group" style="flex-direction: row; align-items: center; gap: 8px;">
+                <input type="checkbox" id="repl-regex">
+                <label for="repl-regex" style="font-size: 14px; cursor: pointer;">使用正则表达式</label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
+                <button class="btn-modal btn-confirm" onclick="executeReplace()">全部替换</button>
+            </div>
+        </div>
+
+        <!-- 配置弹窗 -->
+        <div id="config-modal" class="modal" style="display: none;">
+            <div class="modal-header">
+                <span>LLM 接口配置</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="modal-group">
+                <label>接口 URL (例如: https://api.openai.com/v1/chat/completions)</label>
+                <input type="text" id="cfg-url" placeholder="必须完整包含 /v1/chat/completions">
+            </div>
+            <div class="modal-group">
+                <label>API Key</label>
+                <input type="password" id="cfg-key" placeholder="输入您的 API Key">
+            </div>
+            <div class="modal-group">
+                <label>模型名称 (Model Name)</label>
+                <input type="text" id="cfg-model" placeholder="例如: gpt-3.5-turbo">
+            </div>
+            <div class="modal-group">
+                <label>温度参数 (Temperature: 0.0 - 2.0)</label>
+                <input type="number" id="cfg-temp" step="0.1" min="0" max="2" value="0.7">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
+                <button class="btn-modal btn-confirm" onclick="saveConfig()">保存配置</button>
+            </div>
+        </div>
+
+        <!-- 参考资料弹窗 (已重构变宽、高度自适应拉满) -->
+        <div id="ref-modal" class="modal" style="display: none; width: 850px; max-width: 95vw; height: 75vh;">
+            <div class="modal-header">
+                <span>管理参考资料</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px;">
+                <div class="modal-group" style="gap:0;">
+                    <label style="font-weight:bold; color:var(--btn-primary); font-size:14px;">参考内容</label>
+                    <span style="font-size: 12px; color: var(--text-muted);">在此粘贴背景资料，让 AI 做到有据可依，杜绝幻觉。</span>
+                </div>
+                <div class="file-input-wrapper">
+                    <label for="ref-file" class="btn-modal btn-cancel" style="cursor: pointer; font-size: 12px; padding: 6px 12px; font-weight:bold;">📂 导入本地文件</label>
+                    <input type="file" id="ref-file" accept=".txt,.md" onchange="readLocalFile(event)" style="display:none;">
+                </div>
+            </div>
+            <div class="modal-group" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+                <textarea id="ref-content" placeholder="在此粘贴海量参考资料..." style="flex: 1; height: 100%; min-height: 200px; resize: none;"></textarea>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <div class="modal-group" style="flex-direction: row; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="ref-enabled" style="width: 16px; height: 16px;">
+                    <label for="ref-enabled"
+                        style="font-size: 14px; font-weight: bold; color: var(--text-main); cursor: pointer;">
+                        调用LLM时附带参考资料
+                    </label>
+                </div>
+                <div class="modal-actions" style="margin-top: 0;">
+                    <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
+                    <button class="btn-modal btn-confirm" onclick="saveReference()">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 使用说明弹窗 (新增) -->
+        <div id="guide-modal" class="modal" style="display: none; width: 850px; max-width: 95vw;">
+            <div class="modal-header">
+                <span>📖 智能写作助手 使用说明</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="modal-group" style="flex:1; overflow-y:auto; max-height: 60vh; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; background: var(--editor-bg);">
+                <div id="guide-content" class="editor-preview markdown-body" style="display: block; padding: 10px;"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-confirm" onclick="closeModal()">我已了解</button>
+            </div>
+        </div>
+
+        <div id="sysprompt-modal" class="modal" style="display: none; width: 600px;">
+            <div class="modal-header">
+                <span>System Prompt (只读)</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="modal-group">
+                <label style="color:var(--btn-primary); font-weight:bold;">系统底层提示词，强制约束 LLM 的行为与输出格式（已适配三种模式）：</label>
+                <textarea id="sys-content" style="height: 350px; line-height:1.5; font-family: monospace; background: var(--bg-sidebar); border: none;" readonly></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeModal()">关闭</button>
+            </div>
+        </div>
+
+        <div id="llm-details-modal" class="modal" style="display: none; width: 650px;">
+            <div class="modal-header">
+                <span>LLM 请求调试详情</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="modal-group" id="llm-error-group" style="display: none;">
+                <label style="color: red; font-weight: bold;">❌ 错误信息</label>
+                <div id="llm-error-msg"
+                    style="color: red; font-size: 13px; background: #fee; padding: 10px; border-radius: 6px; border: 1px solid #fcc; word-break: break-all;">
+                </div>
+            </div>
+            <div class="modal-group">
+                <label>Request Payload (提交内容)</label>
+                <textarea id="llm-req-text" class="readonly-textarea" readonly></textarea>
+            </div>
+            <div class="modal-group">
+                <label>Response / Exception (流式输出全记录)</label>
+                <textarea id="llm-res-text" class="readonly-textarea" readonly></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/html-docx.min.js"></script>
+    <script>
+		// --- 核心配置初始化 ---
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({
+                highlight: function (code, lang) {
+                    if (lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
+                        try { return hljs.highlight(code, { language: lang }).value; } catch (__) { }
+                    }
+                    return code;
+                },
+                breaks: true
+            });
+        }
+
+        if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: 'default' });
+        }
+
+        // ===================== 【提示信息与占位符设置】 =====================
+        const emptyPromptMarkdown = `# 👋 欢迎使用智能写作助手 2.1
+
+不用担心不会用，这里就像是一个带魔法的“记事本”！您可以直接在下面打字，或者把其他地方的文章粘贴进来。
+
+## 💡 怎么使用这个魔法？
+
+### 1. 怎么让 AI 帮我改文章？
+* 🎯 **局部修改**：用鼠标**选中**文章里的一句话或一段话，旁边马上会弹出一个悬浮小菜单。您可以点击「✨ 润色」让句子更通顺，点击「📝 扩写」让内容更丰富。
+* 📝 **全文修改**：如果您想让 AI 帮您修改整篇文章，只要**什么都不选**，在右下角的输入框里告诉 AI 您的想法（比如：“帮我把整篇文章改得更生动一些”），然后点击提交即可！
+* ➕ **续写文章**：点击右下角输入框上面的下拉菜单，选择「末尾追加」，AI 就会顺着您写过的内容接着往下写。
+
+### 2. 什么是渲染模式？
+* 当您写完文章后，可以点击顶部的 **「切换渲染模式」**，此时您的文章会变成排版精美的最终效果。
+
+### 3. 让 AI 更聪明的小技巧
+* 📚 **上传参考资料**：点击右侧的「参考资料」，您可以把手头上的内部文件（比如公司介绍、项目要求）放进去。这样 AI 在写文章时，就会参考您的真实资料，不会胡编乱造！
+* 🎯 **开启写作技能**：点击「写作技能」，您可以给 AI 设定一个专门的写作风格。比如让它使用“讲故事的口吻”或者“严谨的工作报告格式”。
+
+### 4. 初次使用必看：配置大模型
+在开始体验 AI 功能前，您需要先告诉系统使用哪个大模型：
+1. 点击右侧工具栏底部的 **[⚙️ LLM配置]** 按钮。
+2. 填入相关参数，例如：
+   * **接口地址 (URL)**：https://api.deepseek.com/chat/completions 或者 http://127.0.0.1:8002/v1/chat/completions
+   * **API Key**：您在服务商处申请的专属密钥（如 \`sk-xxxxxx\`）
+   * **模型名称**：填写对应的模型，如 \`deepseek-chat\` 或 \`qwen35-27b\`
+
+### 🔒 数据安全与隐私说明
+* 本工具采用纯本地优先架构，您的**文章正文、历史版本以及您的个人配置等所有数据，均安全保存在您本机的浏览器缓存中**。
+* **服务器不留存任何用户数据**。当您点击提交让 AI 帮您修改时，数据只会在传输给您配置的大模型接口的那一瞬间被使用。您的隐私和数据主权完全在您自己手中。
+`;
+        // ====================================================================
+
+        // --- 核心状态 ---
+        let history = [];
+        let historyIndex = -1;
+        let isPreviewMode = false;
+
+        let appConfig = { url: 'http://127.0.0.1:8081/llm/v1/chat/completions', key: 'sk-1234567890...', model: 'qwen3.5-27b', temp: 0.7 };
+        let refData = { content: '', enabled: false };
+
+        let techniques = [];
+        let currentTechIndex = -1;
+        let interactionHistory = [];
+
+        // 根据要求重构的只读 System Prompt
+        const sysPromptText = `# Role: 顶尖Markdown写作助手与排版专家\n\n## Profile:\n- author: AI Writing Assistant System\n- version: 2.1\n- language: 中文\n- description: 你是一个具备深厚文字功底的专业写作助手。你的核心使命是严格遵循用户的各项标签指令，高效、精准地进行文本处理。\n\n## Input Tags Description (输入标签定义):\n为了让你更好地理解上下文，系统会通过以下XML标签向你输送信息：\n- <edit_mode>: 本次修改的模式（全文修改、局部修改、末尾追加）。\n- <task_instruction>: 用户给你的具体执行指令。\n- <full_context>: 完整的文章内容。\n- <target_text_to_process>: 当进行局部修改时，这里是你需要重点处理的目标文本。\n- <before_selection> / <after_selection>: 局部修改时，目标文本前后的上下文（仅供参考，绝对不要包含在你的输出中）。\n- <reference_material>: 用户提供的高价值私域知识与参考资料。你必须将其作为重要的事实依据，从中提取关键信息来支撑你的创作，同时确保最终生成的内容紧密贴合当前的写作主题与逻辑上下文，不可生搬硬套。\n\n## Strict Rules (绝对约束):\n1. **【零废话原则】**：你的输出将被程序直接用于替换或追加文档内容。严禁输出任何开场白、解释说明或总结。\n2. **【模式执行与边界控制】**（核心）：\n   - 若 <edit_mode> 为 "全文修改"：必须输出修改后的完整文章全文，不要遗漏未修改的部分。\n   - 若 <edit_mode> 为 "局部修改"：仅输出对 <target_text_to_process> 处理后的结果，绝对禁止包含前后上下文！\n   - 若 <edit_mode> 为 "末尾追加"：仅输出生成的新内容，绝对禁止重复输出已有的 <full_context> 内容！\n3. **【禁止代码块包裹】**：除非要求编写代码，否则绝对禁止使用 Markdown 代码块 (\`\`\`) 包裹正文。\n`;
+
+        let lastLLMReq = "";
+        let lastLLMRes = "";
+        let lastLLMErr = "";
+        let currentSelectedHistoryIndex = -1;
+        
+        // --- IndexedDB 简单封装 ---
+        const DB_NAME = 'WriterAssistantDB';
+        const DB_VERSION = 1;
+        let dbInstance = null;
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('store')) {
+                        db.createObjectStore('store');
+                    }
+                };
+                request.onsuccess = (e) => { dbInstance = e.target.result; resolve(dbInstance); };
+                request.onerror = (e) => reject(e);
+            });
+        }
+
+        function dbSet(key, val) {
+            return new Promise((resolve) => {
+                if (!dbInstance) return resolve();
+                const tx = dbInstance.transaction('store', 'readwrite');
+                tx.objectStore('store').put(val, key);
+                tx.oncomplete = () => resolve();
+            });
+        }
+
+        function dbGet(key) {
+            return new Promise((resolve) => {
+                if (!dbInstance) return resolve(null);
+                const tx = dbInstance.transaction('store', 'readonly');
+                const req = tx.objectStore('store').get(key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(null);
+            });
+        }
+
+        let abortController = null;
+
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        const outlineList = document.getElementById('outline-list');
+        const wordCountEl = document.getElementById('word-count');
+        const saveTimeEl = document.getElementById('save-time');
+        const statusIcon = document.getElementById('llm-status-icon');
+
+        window.onload = async () => {
+            // 设置友好的多行占位符（完美解决空文本显示引导的问题）
+            editor.placeholder = emptyPromptMarkdown;
+
+            await initDB();
+            const savedHistory = await dbGet('writer_history');
+    
+            if (savedHistory && savedHistory.length > 0) {
+                history = savedHistory;
+                historyIndex = history.length - 1;
+                editor.value = history[historyIndex] || "";
+            } else {
+                saveState("");
+            }
+            await loadLocalData();
+
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('theme-btn').innerText = '☀️ 浅色';
+            }
+
+            updateUI();
+            document.getElementById('sys-content').value = sysPromptText;
+
+            // 拦截焦点
+            const toolButtons = document.querySelectorAll('.tools-basic button, .ai-tools button');
+            toolButtons.forEach(btn => {
+                btn.addEventListener('mousedown', function (e) {
+                    if (!isPreviewMode && document.activeElement === editor) {
+                        e.preventDefault();
+                    }
+                });
+            });
+
+            // 监听编辑器选区变化来显示悬浮框和 Hint
+            editor.addEventListener('mouseup', handleEditorSelection);
+            editor.addEventListener('keyup', handleEditorSelection);
+
+            document.addEventListener('selectionchange', function () {
+                if (document.activeElement === editor && !isPreviewMode) {
+                    handleEditorSelection();
+                }
+            });
+        };
+
+        function handleEditorSelection(e) {
+            updateSelectionHint();
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const floatingTb = document.getElementById('floating-toolbar');
+            
+            if (start !== end && !isPreviewMode) {
+                if (floatingTb.style.display !== 'flex') {
+                    floatingTb.style.display = 'flex';
+                    floatingTb.style.left = '50%';
+                    floatingTb.style.top = '20%'; 
+                    floatingTb.style.transform = 'translate(-50%, 0)';
+                }
+            } else {
+                floatingTb.style.display = 'none';
+            }
+        }
+
+        // 更新提交提示文字区域
+        function updateSelectionHint() {
+            if (isPreviewMode) return;
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const modeSelect = document.getElementById('llm-mode-select');
+            const hintSpan = document.getElementById('selection-hint');
+
+            if (modeSelect.value === 'local') {
+                if (start !== end) {
+                    let text = editor.value.substring(start, end).replace(/\n/g, ' ');
+                    if (text.length > 32) {
+                        let startText = text.substring(0, 18);
+                        let endText = text.substring(text.length - 12);
+                        hintSpan.innerHTML = `<span style="color:var(--btn-primary); font-size:13px; margin-left:10px; background:#f0f4f8; padding:2px 8px; border-radius:4px; border: 1px solid var(--btn-blue);">🎯 修改范围：${startText} ...... ${endText}</span>`;
+                    } else {
+                        hintSpan.innerHTML = `<span style="color:var(--btn-primary); font-size:13px; margin-left:10px; background:#f0f4f8; padding:2px 8px; border-radius:4px; border: 1px solid var(--btn-blue);">🎯 修改范围：${text}</span>`;
+                    }
+                } else {
+                    hintSpan.innerHTML = `<span style="color:red; font-size:13px; margin-left:10px;">⚠️ 请在正文中选择要修改的文字</span>`;
+                }
+            } else {
+                hintSpan.innerHTML = '';
+            }
+        }
+
+        // 悬浮工具栏响应：不直接提交，而是填装 Prompt 并让用户决定
+        function floatingAction(mode) {
+            setPromptMode(mode);
+            document.getElementById('floating-toolbar').style.display = 'none';
+        }
+
+        function stopLLM() {
+            if (abortController) {
+                abortController.abort();
+                abortController = null;
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('app-sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const btn = document.getElementById('theme-btn');
+            if (currentTheme === 'dark') {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+                btn.innerText = '🌓 暗色';
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                btn.innerText = '☀️ 浅色';
+            }
+        }
+
+
+        function downloadDocx() {
+            const text = editor.value;
+            if (!text.trim()) {
+                alert("当前文章为空，暂无内容可下载！");
+                return;
+            }
+            if (typeof htmlDocx === 'undefined') {
+                alert("找不到 html-docx 插件，请确保 js/html-docx.min.js 已正确加载。");
+                return;
+            }
+            let htmlContent = marked.parse(text);
+            let fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Document</title></head><body>${htmlContent}</body></html>`;
+            
+            var converted = htmlDocx.asBlob(fullHtml);
+            var url = URL.createObjectURL(converted);
+            var a = document.createElement('a');
+            a.href = url;
+            const now = new Date();
+            const timeStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+            a.download = `文章正文_${timeStr}.docx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadMarkdown() {
+            const text = editor.value;
+            if (!text.trim()) {
+                alert("当前文章为空，暂无内容可下载！");
+                return;
+            }
+            const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+
+            const now = new Date();
+            const timeStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+            a.download = `文章正文_${timeStr}.md`;
+
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        let timeout = null;
+        function handleInput() {
+            updateOutline();
+            updateStats();
+            updateSelectionHint();
+            clearTimeout(timeout);
+            timeout = setTimeout(() => saveState(editor.value), 1000);
+        }
+
+        function saveState(text) {
+            if (historyIndex >= 0 && history[historyIndex] === text) return;
+            history = history.slice(0, historyIndex + 1);
+            history.push(text);
+
+            if (history.length > 30) {
+                history.shift();
+            }
+            historyIndex = history.length - 1;
+
+            dbSet('writer_history', history);
+
+            const now = new Date();
+            saveTimeEl.innerText = `最后保存: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                editor.value = history[historyIndex];
+                dbSet('writer_history', history);
+                updateUI();
+            }
+        }
+
+        // 清空内容时，只需要把 value 置空，美观的 Placeholder 将自动浮现
+        function clearContent() {
+            if (confirm('确定要清空文章正文吗？支持撤回。')) {
+                editor.value = '';
+                saveState('');
+                updateUI();
+                interactionHistory = [];
+                dbSet('writer_interaction_history', interactionHistory);
+            }
+        }
+
+        function renderHistoryList() {
+            const container = document.getElementById('history-list-container');
+            container.innerHTML = '';
+            document.getElementById('history-detail-text').value = '';
+
+            const btnRestore = document.getElementById('btn-restore-history');
+            btnRestore.disabled = true;
+            btnRestore.innerText = '恢复此版本';
+            currentSelectedHistoryIndex = -1;
+
+            if (history.length === 0) {
+                container.innerHTML = '<p style="color:#aaa; text-align:center; padding: 20px;">暂无历史记录</p>';
+                return;
+            }
+
+            for (let i = history.length - 1; i >= 0; i--) {
+                const text = history[i];
+                const previewText = text ? text.substring(0, 30).replace(/\n/g, ' ') + '...' : '[空文本]';
+                const words = text.match(/[\u4e00-\u9fa5]|[a-zA-Z0-9]+/g);
+                const wordCount = words ? words.length : 0;
+
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.id = 'history-item-' + i;
+
+                const isCurrent = i === historyIndex;
+                const titleStr = isCurrent ? `版本 ${i + 1} (当前)` : `版本 ${i + 1}`;
+
+                item.innerHTML = `
+                    <div class="history-info">
+                        <div class="history-title" style="${isCurrent ? 'color: var(--btn-primary);' : ''}">${titleStr}</div>
+                        <div style="font-size:12px; color:#888;">字数: ${wordCount}</div>
+                        <div class="history-preview" title="${text}">${previewText}</div>
+                    </div>
+                `;
+                item.onclick = () => selectHistory(i);
+                container.appendChild(item);
+            }
+
+            const defaultIndex = historyIndex >= 0 ? historyIndex : history.length - 1;
+            if (history.length > 0) selectHistory(defaultIndex);
+        }
+
+        function selectHistory(index) {
+            currentSelectedHistoryIndex = index;
+            document.querySelectorAll('#history-list-container .history-item').forEach(el => el.classList.remove('active'));
+            const activeItem = document.getElementById('history-item-' + index);
+            if (activeItem) activeItem.classList.add('active');
+
+            document.getElementById('history-detail-text').value = history[index] || "";
+
+            const btn = document.getElementById('btn-restore-history');
+            if (index === historyIndex) {
+                btn.disabled = true;
+                btn.innerText = '当前正处于此版本';
+            } else {
+                btn.disabled = false;
+                btn.innerText = '恢复此版本';
+            }
+        }
+
+        function restoreSelectedHistory() {
+            if (currentSelectedHistoryIndex >= 0 && currentSelectedHistoryIndex < history.length) {
+                editor.value = history[currentSelectedHistoryIndex] || "";
+                saveState(editor.value);
+                updateUI();
+                closeModal();
+            }
+        }
+
+        // === 写作技能逻辑 ===
+        function renderTechList() {
+            const container = document.getElementById('tech-list-container');
+            container.innerHTML = '';
+            techniques.forEach((tech, i) => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                if (i === currentTechIndex) item.classList.add('active');
+                item.innerHTML = `
+                    <div class="history-info">
+                        <div class="history-title">${tech.title} ${tech.enabled ? '<span style="color:green;font-size:12px;">(已启用)</span>' : '<span style="color:#aaa;font-size:12px;">(禁用)</span>'}</div>
+                    </div>
+                `;
+                item.onclick = () => selectTech(i);
+                container.appendChild(item);
+            });
+
+            if (techniques.length === 0) selectTech(-1);
+            else if (currentTechIndex === -1 || currentTechIndex >= techniques.length) selectTech(0);
+        }
+
+        function selectTech(index) {
+            currentTechIndex = index;
+            document.querySelectorAll('#tech-list-container .history-item').forEach(el => el.classList.remove('active'));
+            if (index >= 0) {
+                const activeItem = document.getElementById('tech-list-container').children[index];
+                if (activeItem) activeItem.classList.add('active');
+            }
+
+            if (index >= 0 && techniques[index]) {
+                const tech = techniques[index];
+                document.getElementById('tech-title').value = tech.title;
+                document.getElementById('tech-condition').value = tech.condition;
+                document.getElementById('tech-desc').value = tech.description;
+                document.getElementById('tech-enabled').checked = tech.enabled;
+                document.getElementById('btn-del-tech').style.display = 'block';
+            } else {
+                document.getElementById('tech-title').value = '';
+                document.getElementById('tech-condition').value = '';
+                document.getElementById('tech-desc').value = '';
+                document.getElementById('tech-enabled').checked = true;
+                document.getElementById('btn-del-tech').style.display = 'none';
+            }
+        }
+
+        function addNewTechnique() {
+            const newTech = { id: Date.now(), title: '未命名技能', condition: '', description: '', enabled: true };
+            techniques.push(newTech);
+            currentTechIndex = techniques.length - 1;
+            renderTechList();
+            document.getElementById('tech-title').focus();
+        }
+
+        async function saveTechnique() {
+            if (currentTechIndex >= 0 && techniques[currentTechIndex]) {
+                const tech = techniques[currentTechIndex];
+                tech.title = document.getElementById('tech-title').value.trim() || '未命名技能';
+                tech.condition = document.getElementById('tech-condition').value.trim();
+                tech.description = document.getElementById('tech-desc').value.trim();
+                tech.enabled = document.getElementById('tech-enabled').checked;
+                await dbSet('writer_techniques', techniques);
+                renderTechList();
+                alert('写作技能已保存！');
+            }
+        }
+
+        async function deleteTechnique() {
+            if (currentTechIndex >= 0 && techniques[currentTechIndex]) {
+                if (confirm('确定要删除此写作技能吗？此操作不可恢复。')) {
+                    techniques.splice(currentTechIndex, 1);
+                    await dbSet('writer_techniques', techniques);
+                    currentTechIndex = techniques.length > 0 ? 0 : -1;
+                    renderTechList();
+                }
+            }
+        }
+
+        function updateUI() {
+            updateOutline();
+            updateStats();
+            if (isPreviewMode) renderMarkdownView();
+        }
+
+        function updateStats() {
+            const text = editor.value;
+            const words = text.match(/[\u4e00-\u9fa5]|[a-zA-Z0-9]+/g);
+            wordCountEl.innerText = `字数: ${words ? words.length : 0}`;
+        }
+
+
+        function toggleDropdown() {
+            document.getElementById("downloadDropdown").classList.toggle("show");
+            document.querySelector(".dropdown").classList.toggle("active");
+        }
+
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropbtn')) {
+                var dropdowns = document.getElementsByClassName("dropdown-content");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    var openDropdown = dropdowns[i];
+                    if (openDropdown.classList.contains('show')) {
+                        openDropdown.classList.remove('show');
+                        document.querySelector(".dropdown").classList.remove("active");
+                    }
+                }
+            }
+        }
+
+        function toggleMode() {
+            isPreviewMode = !isPreviewMode;
+            const btn = document.getElementById('toggle-mode-btn');
+            if (isPreviewMode) {
+                btn.innerText = '📝 切换编辑模式';
+                editor.style.display = 'none';
+                preview.style.display = 'block';
+                renderMarkdownView();
+            } else {
+                btn.innerText = '👁️ 切换渲染模式';
+                editor.style.display = 'block';
+                preview.style.display = 'none';
+            }
+        }
+
+        async function renderMarkdownView() {
+            let text = editor.value;
+            // 核心修改：如果是空文本，直接渲染出精美的 Markdown 排版帮助！
+            if (!text.trim()) {
+                text = emptyPromptMarkdown;
+            }
+
+            try {
+                if (typeof marked !== 'undefined') {
+                    preview.innerHTML = marked.parse(text);
+                } else {
+                    preview.innerHTML = `<pre>${text}</pre>`;
+                }
+
+                if (typeof renderMathInElement !== 'undefined') {
+                    renderMathInElement(preview, {
+                        delimiters: [
+                            { left: '$$', right: '$$', display: true },
+                            { left: '$', right: '$', display: false },
+                            { left: '\\(', right: '\\)', display: false },
+                            { left: '\\[', right: '\\]', display: true }
+                        ],
+                        throwOnError: false
+                    });
+                }
+
+                if (typeof mermaid !== 'undefined') {
+                    const mermaidBlocks = preview.querySelectorAll('.language-mermaid');
+                    for (let i = 0; i < mermaidBlocks.length; i++) {
+                        const block = mermaidBlocks[i];
+                        const code = block.textContent;
+                        const container = document.createElement('div');
+                        container.className = 'mermaid';
+                        try {
+                            const { svg } = await mermaid.render('mermaid-chart-' + i, code);
+                            container.innerHTML = svg;
+                            block.parentNode.replaceWith(container);
+                        } catch (e) {
+                            container.innerHTML = `<pre style="color:red; font-size: 12px;">Mermaid Syntax Error:\n${e.message}</pre>`;
+                            block.parentNode.replaceWith(container);
+                        }
+                    }
+                }
+            } catch (err) {
+                preview.innerHTML = `<p style="color:red">渲染发生错误: ${err.message}</p>`;
+            }
+        }
+
+        function updateOutline() {
+            let text = editor.value;
+            text = text.replace(/```[\s\S]*?```/g, ''); 
+            const regex = /^(#{1,3})\s+(.*)$/gm;
+            let match;
+            outlineList.innerHTML = '';
+            let count = 0;
+            let headingIndex = 0;
+
+            while ((match = regex.exec(text)) !== null) {
+                count++;
+                const level = match[1].length;
+                const title = match[2];
+                const div = document.createElement('div');
+                div.className = `outline-item outline-h${level}`;
+                div.innerText = title;
+                div.title = title;
+
+                const matchIndex = match.index;
+                const currentHeadingIndex = headingIndex;
+
+                div.onclick = () => {
+                    if (!isPreviewMode) {
+                        editor.focus();
+                        editor.setSelectionRange(matchIndex, matchIndex);
+
+                        // 【完美解决大纲错位】：通过隐藏的幽灵 div 精确计算由于折行产生的真实高度
+                        const clone = document.createElement('div');
+                        const style = window.getComputedStyle(editor);
+                        clone.style.cssText = `
+                            position: absolute;
+                            visibility: hidden;
+                            white-space: pre-wrap;
+                            word-wrap: break-word;
+                            overflow-wrap: break-word;
+                            font-family: ${style.fontFamily};
+                            font-size: ${style.fontSize};
+                            line-height: ${style.lineHeight};
+                            padding: ${style.padding};
+                            width: ${editor.clientWidth}px;
+                            box-sizing: border-box;
+                        `;
+                        clone.textContent = text.substring(0, matchIndex);
+                        document.body.appendChild(clone);
+                        const scrollY = clone.offsetHeight;
+                        document.body.removeChild(clone);
+
+                        // 滚动到精确高度，补偿内边距使得标题刚好在顶部框内
+                        editor.scrollTop = scrollY - parseInt(style.paddingTop || 20);
+
+                    } else {
+                        const headings = preview.querySelectorAll('h1, h2, h3');
+                        if (headings[currentHeadingIndex]) {
+                            headings[currentHeadingIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }
+                };
+                outlineList.appendChild(div);
+                headingIndex++;
+            }
+            if (count === 0) outlineList.innerHTML = '<div style="color:#aaa; font-size:12px;">暂无目录结构</div>';
+        }
+
+        // ====================================================================
+        // 【重构核心】：抽离繁复的硬编码预设，保证加载逻辑清爽可读
+        // ====================================================================
+        const DEFAULT_TECHNIQUES = [
+            {
+                id: 1,
+                title: '技术方案',
+                condition: '当编写设计方案、系统设计、产品设计、技术白皮书、研究分析报告、技术原理等技术文档时',
+                enabled: true,
+                description: `当处理“技术方案”、“建设方案”、“系统设计”、“可行性分析报告”或“研究报告”等技术性较强的文档时，必须遵循以下高标准规范进行结构化创作，以确保方案的前瞻性、可落地性与学术/工业级严谨度：
+
+#### 一、 写作核心原则 (Core Tenets)
+1. **术语与数据前后一致 (Consistency)**：全文范围内的核心观点、架构命名（如模块名、API名称）、技术指标、单位及业务术语必须保持绝对一致。如在上下文中使用过“分布式协调器”，后续不得随意变更为“节点管理器”。
+2. **严谨中立的专业语气 (Tone)**：采用客观、中立的第三人称学术/工程化语调。严禁使用任何感性、夸张或模糊的主观描述（如“非常快”、“极其完美”、“无懈可击”），所有优势和特性必须使用量化指标、行业标准或客观事实（如“吞吐量达 \`[X]\` TPS”、“符合 RFC 6455 标准”）进行支撑。
+3. **金字塔逻辑与深度解构 (Structure)**：遵循“自顶向下”的设计逻辑。先阐明背景与核心痛点，其次提出顶层多维架构设计，最后展开子系统与关键技术的实现细节。
+
+#### 二、 标准模块建设规范 (Standard Architecture Blocks)
+在根据用户指令生成或改写技术方案时，应优先采用以下结构进行合理组织：
+1. **背景与可行性分析**：清晰定义当前面临的技术瓶颈或业务痛点，从技术可行性（成熟度、演进方向）、经济可行性、安全与合规性等多个维度进行多级论证。
+2. **总体系统设计（顶层架构）**：
+   - **多层架构设计**：必须明确划分为“接入层 / 业务逻辑层 / 数据持久层”等经典三层或微服务多层架构。
+   - **架构图解**：当生成总体架构时，推荐使用 Mermaid 代码块绘制清晰的流程图或架构图（格式如：\`\`\`mermaid
+graph TD
+...
+\`\`\`），增强可视化展示。
+3. **详细设计与核心机制**：
+   - **数据结构与接口契约**：涉及数据库或数据接口时，必须以 Markdown 表字典表进行定义（包含：字段名、数据类型、是否必填、说明等）。
+   - **核心算法/业务流**：关键逻辑应使用清晰的流程图、状态机或结构化伪代码（Pseudocode）表示，避免含糊其辞。
+4. **非功能性设计（保障体系）**：涵盖系统的高可用（HA）设计、容灾策略、缓存机制、全链路安全防护（如数据脱敏、加密传输、防注入）、高并发下的限流与降级预案。
+
+#### 三、 约束与负向提示 (Negative Prompts)
+1. **禁止捏造未定义数据**：若输入缺乏具体性能指标、预算或机器配置，必须以 \`[具体指标]\` 形式占位，并提醒用户补充。
+2. **禁止代码块包裹正文**：除架构图（Mermaid）、伪代码或数据表格外，严禁使用代码块 (\`\`\`) 包裹方案的常规中文正文。
+3. **上下文边界对齐**：当模式为“局部修改”或“末尾追加”时，强制使输出风格、排版、甚至缩进格调与已有上下文完全融合。`
+            },
+            {
+                id: 2,
+                title: '工作报告',
+                condition: '当编写工作报告、问题报告、成果总结、项目总结文档时',
+                enabled: true,
+                description: `当处理“工作报告”或其部分段落时，必须遵循以下结构和规范。你需要根据以下3个阶段进行层层递进的结构化输出：
+
+#### 第一阶段：总体情况与核心进展 (## 1. 总体进展与核心成效 / 核心问题)
+- **目标**：开门见山，用最简明通俗的语言向领导交代“目前什么情况，取得了什么核心进展或面临什么核心问题”。
+- **要求**：
+  1. 拒绝官腔官套，用简洁干练的直白语言进行概述（不超过150字）。
+  2. 突出1-2个最显著的“成效指标”或“核心痛点”。
+  3. 格式上，建议使用引用块（>）或者第一行加粗，方便领导秒读。
+
+#### 第二阶段：详细工作内容展开与关键数据支撑 (## 2. 重点工作与量化数据分析)
+- **目标**：清晰梳理并记录工作的重要事实、关键细节，或深入剖析问题产生的根源。
+- **要求**：
+  1. **数据化表达**：每项工作必须关联具体的量化指标（如：处理工单 [X] 件、上线 [Y] 个功能、系统可用性提升 [Z]%，如果输入中缺乏数据，请用 [具体数据] 占位符标出并加括号提示，切勿胡编乱造）。
+  2. **条理化排版**：采用 Markdown 无序列表进行逐项汇报，每条开头使用加粗的【核心动作】。
+  3. **问题因果深挖**：如果是问题汇报，必须进行根源分析（Root Cause Analysis），划分“直接技术原因”与“管理/流程原因”，并用数据评估受影响范围。
+  4. **推荐使用表格**：关键指标对比或问题严重程度，建议使用 Markdown 表格进行清晰展示。
+
+#### 第三阶段：总结、下一步计划与多套应对方案 (## 3. 下阶段工作计划 / 应对措施与决策参考)
+- **目标**：展示闭环思维，让领导看到具体的行动路线或决策选项。
+- **要求**：
+  1. **正常汇报**：列出清晰的下一步里程碑计划、完成时限及所需的跨部门资源协调。
+  2. **问题解决方案汇报**：详细写明彻底根治该问题的核心路径、预期效果及投入成本。
+
+---
+⚠️ **负向约束 (Negative Prompts)**：
+- 严禁废话：绝对不要在开头说“好的，我为您生成的工作报告如下：”或“以上是为您整理的内容”等废话，直接输出正文。
+- 严禁无数据抒情：不可使用“极大提升”、“极其显著”、“深受好评”等模糊抒情词汇，所有成效必须有据可查或保留数据占位符。
+- 保持文章逻辑：如果用户是“局部修改”或“末尾追加”，你必须顺应上下文的行文逻辑与语气，进行无缝衔接。`
+            },
+            {
+                id: 3,
+                title: '小说故事',
+                condition: '当进行小说创作、故事描写、文学性叙事时',
+                enabled: true,
+                description: `当处理小说创作、故事描写、散文叙事等文学性创作或其部分段落时，必须遵循以下高品质创作指南，释放深厚的文学功底，打造语言生动、情节吸引人且富有深刻内涵的作品：
+
+#### 一、 语言生动性与“情境展现”原则 (Show, Don't Tell)
+1. **摒弃直白陈述**：严禁直接使用抽象的感情或状态形容词（如“他感到极度悲伤”、“她非常生气”、“房间很破旧”）。必须通过以下方式展现：
+   - **生理与动作细节**：如“指关节捏得发白，指甲陷进掌心”、“喉咙里发出一声被砂纸打磨过般的干涩吞咽”。
+   - **环境的侧面烘托**：用周遭的环境折射人物内心，如“窗外冰冷的雨水重重砸在枯叶上，激起一地酸涩的泥腥气”。
+2. **多维感官交融 (Sensory Integration)**：每段场景描写必须交织**视觉、听觉、嗅觉、触觉、味觉**。用“生锈的铁锁在秋风中撞击出迟钝的钝响”代替“锁坏了”；用“空气中浮动着陈年宣纸风化后的微酸与腐叶的霉苦”代替“书房有一股旧味”。
+
+#### 二、 情节设计、冲突与节奏把控 (Conflict, Suspense & Pacing)
+1. **明暗线冲突构建**：拒绝平铺直叙。每一幕甚至每一段对话，都必须蕴含**显性或隐性的冲突**（如信仰的撕扯、利益的角逐、内心的自我审判）。
+2. **潜台词与留白机制 (Subtext & Subtlety)**：对话切忌过于露骨，角色绝不能轻易吐露真实心声。善用“答非所问”、眼神回避或看似随意的微表情，在台词之下掩埋汹涌的暗流，为读者留下推理与咀嚼的悬念空间。
+3. **叙事节奏调配**：在动作与高潮部分，使用短句子、强动词，加快语速与紧张感；在情感沉淀与哲思部分，拉长句子，注重环境与心理的细腻雕琢。
+
+#### 三、 深刻内涵与主题升华 (Thematic Connotation & Anti-Cliché)
+1. **人性的复杂性（灰色角色）**：严禁塑造非黑即白的完美英雄或纯粹恶魔。主角可能存在私欲、盲区或不可避免的懦弱；反派也必须拥有其自洽的行为逻辑、闪光的一瞬或令人扼腕的悲剧宿命。
+2. **象征性意象与母题 (Symbolic Motifs)**：在叙事中穿含一个或多个具有隐喻性的核心意象（如：一盏不断闪烁的油灯、一枚走慢了三秒的怀表、一株在碎石缝中开出的苍白野花）。让意象伴随命运起伏发生物理或象征意义上的演变，自然引出主题，实现文学性升华。
+3. **拒绝肤浅的说教与灌输**：严禁在故事结尾使用鸡汤式、大道理的说教句式（如“在这个瞬间，他终于明白了爱与包容的真谛……”）。结尾应当是开放的、克制的、充满余音的现实妥协或释怀。用充满张力的最后一幕场景画面戛然而止，将思考权完全交还读者。
+
+#### 四、 负向约束 (Negative Prompts for Local LLM)
+1. **严禁废话与过渡性套话**：直接输出小说故事文本。绝对不要出现“好的，我为您生成的故事如下：”或“以上是根据您的要求润色的段落”等破坏沉浸感的废话。
+2. **禁用高频 AI 词汇套路**：严禁出现“随着……的降临/推移”、“仿佛在诉说着……”、“他明白，这不仅是……更是……”、“无论未来如何……”等充满塑料感的千篇一律的句式。
+3. **文风融合与无缝衔接**：如果是“局部修改”或“末尾追加”，你必须瞬间捕捉并无缝对齐已有文本的文风（冷峻、唯美、粗粝、幽默等）和叙事视角（第一人称/第三人称），绝不能产生断层感。`
+            }
+        ];
+
+        async function loadLocalData() {
+            try {
+                // 并发执行数据库读取，缩短初始化等待时间
+                const [savedConfig, savedRef, savedInteraction, savedTech] = await Promise.all([
+                    dbGet('writer_llm_config'),
+                    dbGet('writer_ref_data'),
+                    dbGet('writer_interaction_history'),
+                    dbGet('writer_techniques')
+                ]);
+
+                if (savedConfig) Object.assign(appConfig, savedConfig);
+                if (savedRef) refData = savedRef;
+                if (savedInteraction) interactionHistory = savedInteraction;
+
+                // 优雅合并与更新写作技能
+                if (savedTech && savedTech.length > 0) {
+                    techniques = savedTech;
+                    let needSave = false;
+
+                    // 遍历预设技能池，完成静默升级与数据修补
+                    for (const defTech of DEFAULT_TECHNIQUES) {
+                        const existTech = techniques.find(t => t.id === defTech.id);
+                        if (existTech) {
+                            // 强制更新内置文案描述，防止版本迭代后用户端文案旧化
+                            if (existTech.description !== defTech.description) {
+                                existTech.description = defTech.description;
+                                needSave = true;
+                            }
+                        } else {
+                            // 若本地数据中缺失新的预设（如新增的小说技能），则将其压入
+                            techniques.push({ ...defTech });
+                            needSave = true;
+                        }
+                    }
+
+                    if (needSave) {
+                        await dbSet('writer_techniques', techniques);
+                    }
+                } else {
+                    // 若无历史技能数据，直接深拷贝默认数组进行初始化
+                    techniques = DEFAULT_TECHNIQUES.map(t => ({ ...t }));
+                    await dbSet('writer_techniques', techniques);
+                }
+            } catch (error) {
+                console.error("Failed to load local data:", error);
+            }
+        }
+        // ====================================================================
+
+
+        function openModal(modalId) {
+            document.getElementById('modal-overlay').style.display = 'flex';
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+            document.getElementById(modalId).style.display = 'flex';
+
+            if (modalId === 'config-modal') {
+                document.getElementById('cfg-url').value = appConfig.url || '';
+                document.getElementById('cfg-key').value = appConfig.key || '';
+                document.getElementById('cfg-model').value = appConfig.model || '';
+                document.getElementById('cfg-temp').value = appConfig.temp || 0.7;
+            } else if (modalId === 'tech-modal') {
+                renderTechList();
+                document.getElementById('tech-title').value = '';
+                document.getElementById('tech-condition').value = '';
+                document.getElementById('tech-desc').value = '';
+                document.getElementById('tech-enabled').checked = true;
+                currentTechIndex = -1;
+            } else if (modalId === 'history-modal') {
+                renderHistoryList();
+            } else if (modalId === 'guide-modal') {
+                document.getElementById('guide-content').innerHTML = marked.parse(emptyPromptMarkdown);
+            } else if (modalId === 'sysprompt-modal') {
+                document.getElementById('sys-content').value = appConfig.sysPrompt || sysPromptText || '';
+            } else if (modalId === 'ref-modal') {
+                document.getElementById('ref-content').value = refData.content || '';
+                document.getElementById('ref-enabled').checked = refData.enabled || false;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        }
+
+        function executeReplace() {
+            const searchStr = document.getElementById('repl-search').value;
+            const targetStr = document.getElementById('repl-target').value;
+            const isRegex = document.getElementById('repl-regex').checked;
+            if (!searchStr) return;
+
+            try {
+                let content = editor.value;
+                if (isRegex) { content = content.replace(new RegExp(searchStr, 'g'), targetStr); }
+                else { content = content.split(searchStr).join(targetStr); }
+
+                editor.value = content;
+                saveState(content);
+                updateUI();
+                closeModal();
+                document.getElementById('repl-search').value = '';
+                document.getElementById('repl-target').value = '';
+            } catch (e) { alert("替换出错: " + e.message); }
+        }
+
+        function saveConfig() {
+            appConfig.url = document.getElementById('cfg-url').value.trim();
+            appConfig.key = document.getElementById('cfg-key').value.trim();
+            appConfig.model = document.getElementById('cfg-model').value.trim();
+            appConfig.temp = parseFloat(document.getElementById('cfg-temp').value) || 0.7;
+            dbSet('writer_llm_config', appConfig);
+            closeModal();
+        }
+
+        function readLocalFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) { document.getElementById('ref-content').value = e.target.result; };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function saveReference() {
+            refData.content = document.getElementById('ref-content').value;
+            refData.enabled = document.getElementById('ref-enabled').checked;
+            dbSet('writer_ref_data', refData);
+            closeModal();
+        }
+
+        function showLLMDetails() {
+            if (statusIcon.classList.contains('idle') || statusIcon.classList.contains('loading')) return;
+
+            document.getElementById('llm-req-text').value = lastLLMReq;
+            document.getElementById('llm-res-text').value = lastLLMRes;
+
+            const errGroup = document.getElementById('llm-error-group');
+            if (lastLLMErr) {
+                errGroup.style.display = 'flex';
+                document.getElementById('llm-error-msg').innerText = lastLLMErr;
+            } else {
+                errGroup.style.display = 'none';
+            }
+            openModal('llm-details-modal');
+        }
+
+        // 修改为只填装Prompt并调整模式下拉框，交由用户点击“提交”触发
+        function setPromptMode(mode) {
+            const modeSelect = document.getElementById('llm-mode-select');
+            const start = editor.selectionStart;
+            const end = editor.selectionEnd;
+            const promptInput = document.getElementById('llm-prompt');
+
+            // 移除可能存在的 local-preview 选项
+            for(let i = 0; i < modeSelect.options.length; i++) {
+                if(modeSelect.options[i].value === 'local-preview') {
+                    modeSelect.remove(i);
+                    break;
+                }
+            }
+
+            if (mode === 'ai_gen') {
+                modeSelect.value = 'append';
+                promptInput.value = '请仔细阅读提供的【完整文章上下文】，在此基础上继续生成后续内容。要求：逻辑连贯，输出合理的Markdown章节标题（如 ## 或 ###）和段落。';
+            } else {
+                if (start !== end && !isPreviewMode) {
+                    modeSelect.value = 'local';
+                } else {
+                    modeSelect.value = 'full';
+                }
+                if (mode === 'rewrite') {
+                    promptInput.value = '把当前内容展开描写，补充详细内容，或者补充具体例子';
+                } else if (mode === 'summarize') {
+                    promptInput.value = '对当前内容提炼主要内容和观点，编写更概况性的内容';
+                } else if (mode === 'polish') {
+                    promptInput.value = '请对文本进行精修润色。要求：纠正所有的错别字、标点错误和语法问题，提升词汇的高级感与专业度，使行文更加自然，严格保持原文主旨不变。';
+                }
+            }
+            updateSelectionHint();
+            promptInput.focus();
+        }
+
+        async function submitToLLM() {
+            const promptInput = document.getElementById('llm-prompt').value.trim();
+            if (!promptInput) { alert("请输入需要发送给 LLM 的指令！"); return; }
+            if (!appConfig.url) { alert("请先在 [⚙️ LLM配置] 中设置正确的接口 URL。"); return; }
+
+            const modeSelect = document.getElementById('llm-mode-select').value;
+            let modeStr = '';
+            if (modeSelect === 'full') modeStr = '全文修改';
+            else if (modeSelect === 'local') modeStr = '局部修改';
+            
+            else if (modeSelect === 'append') modeStr = '末尾追加';
+
+            const fullText = editor.value;
+            const originalStart = editor.selectionStart;
+            const originalEnd = editor.selectionEnd;
+            const selectedText = editor.value.substring(originalStart, originalEnd);
+
+            if (modeSelect === 'local' && originalStart === originalEnd) {
+                alert("【局部修改】模式下，请先在编辑器正文中选中需要修改的文字范围！");
+                return;
+            }
+
+
+            let userContent = `<edit_mode>${modeStr}</edit_mode>\n`;
+            userContent += `<task_instruction>\n${promptInput}\n</task_instruction>\n\n`;
+
+            if (refData.enabled && refData.content.trim() !== "") {
+                userContent += `<reference_material>\n${refData.content}\n</reference_material>\n\n`;
+            }
+
+            let baseTextPre = "";
+            let baseTextPost = "";
+
+            // 核心：基于编辑模式分割文本保留区
+            if (modeSelect === 'local') {
+                baseTextPre = editor.value.substring(0, originalStart);
+                baseTextPost = editor.value.substring(originalEnd);
+                userContent += `<before_selection>\n${baseTextPre}\n</before_selection>\n\n`;
+                userContent += `<target_text_to_process>\n${selectedText}\n</target_text_to_process>\n\n`;
+                userContent += `<after_selection>\n${baseTextPost}\n</after_selection>\n`;
+
+            } else if (modeSelect === 'append') {
+                // 如果是追加内容，当前正文做为基底
+                baseTextPre = fullText + (fullText.endsWith('\n') ? "" : "\n\n");
+                baseTextPost = "";
+                userContent += `<full_context>\n${fullText}\n</full_context>\n`;
+            } else {
+                // 全文修改模式
+                baseTextPre = "";
+                baseTextPost = "";
+                userContent += `<full_context>\n${fullText}\n</full_context>\n`;
+            }
+
+            // 动态注入启用的写作技能
+            let finalSysPrompt = sysPromptText;
+            let techStr = '';
+            techniques.filter(t => t.enabled).forEach(t => {
+                techStr += `- **技能名称**：${t.title}\n  - **使用场景**：${t.condition}\n  - **执行要求**：${t.description}\n`;
+            });
+            if (techStr) {
+                finalSysPrompt += `\n\n## 启用的专属写作技能:\n当前用户为你启用了以下专属写作技能。这是你执行任务的最高准则！请仔细阅读其【使用场景】和【执行要求】，写作技能在【使用场景】与写作要求、文体类型、用户指令匹配时才生效。写作技能生效时，在生成内容时严格贯彻其写作风格、语气和结构排版规范，如果技能要求与常规行为冲突，以技能要求为准：\n${techStr}`;
+            }
+
+
+            let messagesPayload = [
+                { role: "system", content: finalSysPrompt }
+            ];
+
+            // 注入最近 10 次的交互历史，每次截断前200字
+            let recentHistory = interactionHistory.slice(-10);
+            for (let msg of recentHistory) {
+                let truncUser = msg.user.length > 200 ? msg.user.substring(0, 200) + '...[已截断]' : msg.user;
+                let truncAssistant = msg.assistant.length > 200 ? msg.assistant.substring(0, 200) + '...[已截断]' : msg.assistant;
+                messagesPayload.push({ role: "user", content: "【历史操作回忆】: " + truncUser });
+                messagesPayload.push({ role: "assistant", content: "【历史回应回忆】: " + truncAssistant });
+            }
+
+            messagesPayload.push({ role: "user", content: userContent });
+
+            const payload = {
+                model: appConfig.model,
+                temperature: appConfig.temp,
+                stream: true,
+                stream_options:{include_usage: true},
+                enable_thinking: true,
+                extra_body: {enable_thinking: true},
+                messages: messagesPayload
+            };
+
+            abortController = new AbortController();
+
+            lastLLMReq = JSON.stringify(payload, null, 2);
+            lastLLMRes = "";
+            lastLLMErr = "";
+            const estimatedInputTokens = Math.floor(lastLLMReq.length * 0.8);
+
+            const btn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('submit-text');
+            const loader = document.getElementById('submit-loader');
+
+            btn.disabled = true;
+            btn.style.display = 'none';
+            document.getElementById('stop-btn').style.display = 'flex';
+            loader.style.display = 'block';
+            statusIcon.className = 'status-icon loading';
+            statusIcon.title = "请求发送中...";
+
+            editor.readOnly = true;
+
+            const startTime = Date.now();
+
+            try {
+                const response = await fetch(appConfig.url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${appConfig.key}`,
+                        'Accept': 'text/event-stream'
+                    },
+                    body: JSON.stringify(payload),
+                    signal: abortController.signal
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errText}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+
+                let buffer = '';
+                let rawOutputText = '';
+                let rawReasoningText = '';
+                let outputTokens = 0;
+                let actualInputTokens = estimatedInputTokens;
+                
+                // === 新增：暂存跨块切分的 JSON 字符串 ===
+                let pendingData = ''; 
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    let match;
+                    // 使用正则匹配 \n\n 或 \r\n\r\n 作为安全的事件边界
+                    while ((match = /\r?\n\r?\n/.exec(buffer)) !== null) {
+                        let boundary = match.index;
+                        let chunk = buffer.slice(0, boundary).trim();
+                        buffer = buffer.slice(boundary + match[0].length);
+
+                        if (!chunk) continue;
+
+                        // 剥离块中所有的 "data:" 前缀
+                        let chunkDataStr = chunk.replace(/(^|\n)data:\s*/gi, '').trim();
+
+                        if (chunkDataStr === '[DONE]') break;
+
+                        if (chunkDataStr) {
+                            pendingData += chunkDataStr;
+                            try {
+                                const data = JSON.parse(pendingData);
+                                pendingData = ''; 
+
+                                if (data.usage) {
+                                    if (data.usage.completion_tokens) outputTokens = data.usage.completion_tokens;
+                                    if (data.usage.prompt_tokens) actualInputTokens = data.usage.prompt_tokens;
+                                }
+
+                                if (data.choices && data.choices.length > 0) {
+                                    const delta = data.choices[0].delta;
+                                    if (delta) {
+                                        if (delta.reasoning_content) {
+                                            rawReasoningText += delta.reasoning_content;
+                                        }
+                                        if (delta.content) {
+                                            rawOutputText += delta.content;
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                // 单次解析失败：等待下一个块
+                            }
+                        }
+                    }
+
+                    // 状态机消除 <think> 并实时渲染
+                    let cleanText = rawOutputText.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '');
+                    editor.value = baseTextPre + cleanText + baseTextPost;
+                    editor.scrollTop = editor.scrollHeight; 
+                }
+
+                // 最终收尾渲染
+                let finalCleanText = rawOutputText.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '').trimStart();
+                editor.value = baseTextPre + finalCleanText + baseTextPost;
+
+                editor.focus();
+                const endCursor = baseTextPre.length + finalCleanText.length;
+                editor.setSelectionRange(endCursor, endCursor);
+
+                saveState(editor.value);
+                updateUI();
+
+                // 记录交互历史
+                interactionHistory.push({
+                    user: promptInput,
+                    assistant: finalCleanText
+                });
+                if (interactionHistory.length > 10) interactionHistory.shift();
+                dbSet('writer_interaction_history', interactionHistory);
+
+                outputTokens = outputTokens || Math.floor((rawOutputText.length + rawReasoningText.length) * 0.8);
+                const duration = Date.now() - startTime;
+                
+                let displayReasoning = rawReasoningText ? `\n\n【独立思考过程 (reasoning_content)】\n${rawReasoningText}` : '';
+                lastLLMRes = `【SSE 流式传输成功】\n最终提取文本字数：${finalCleanText.length}\n最终生成Tokens：${outputTokens}${displayReasoning}\n\n【底层原始完整输出 (content)】\n${rawOutputText}`;
+
+                statusIcon.className = 'status-icon success';
+                statusIcon.title = "请求成功，点击查看详情";
+                document.getElementById('llm-stats').innerHTML = `
+                    <span>耗时: ${duration}ms</span> | 
+                    <span>上下文: ${actualInputTokens} Tokens</span> | 
+                    <span>输出: ${outputTokens} Tokens</span>
+                `;
+
+            } catch (error) {
+                const duration = Date.now() - startTime;
+                lastLLMErr = error.toString();
+
+                statusIcon.className = 'status-icon error';
+                statusIcon.title = "请求失败，点击查看详情";
+                document.getElementById('llm-stats').innerHTML = `
+                    <span style="color:red;">耗时: ${duration}ms (失败)</span> | 
+                    <span>上下文: ~${estimatedInputTokens} Tokens</span> | 
+                    <span>输出: 0 Tokens</span>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.style.display = 'flex';
+                document.getElementById('stop-btn').style.display = 'none';
+                btnText.style.display = 'block';
+                loader.style.display = 'none';
+                editor.readOnly = false;
+                abortController = null;
+
+                if (isPreviewMode) renderMarkdownView();
+                document.getElementById('selection-hint').innerHTML = ''; // 清空选中提示
+            }
+        }
+    </script>
+</body>
+
+</html>
