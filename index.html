@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能写作助手 2.1</title>
+    <title>智能写作助手 2.2</title>
 
     <script src="js/marked.min.js"></script>
     <link rel="stylesheet" href="css/github.min.css">
@@ -16,6 +16,31 @@
 
     <link rel="stylesheet" href="css/styles.css">
 
+    <style>
+        /* 针对技能列表项按钮的补充样式 */
+        .tech-item-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: background 0.2s, opacity 0.2s;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .tech-item-btn:hover {
+            background: rgba(0,0,0,0.08);
+        }
+        [data-theme="dark"] .tech-item-btn:hover {
+            background: rgba(255,255,255,0.15);
+        }
+        .tech-item-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 500;
+        }
+    </style>
 </head>
 
 <body>
@@ -32,7 +57,7 @@
                 文章正文
             </div>
             <div class="tools-basic">
-			    <button id="toggle-mode-btn" onclick="toggleMode()" title="编辑模式可以进行人工编辑和利用AI进行局部修改，渲染模式不可人工编辑和AI局部修改，但是可以全文修改">👁️ 切换渲染模式</button>
+                <button id="toggle-mode-btn" onclick="toggleMode()" title="编辑模式可以进行人工编辑和利用AI进行局部修改，渲染模式不可人工编辑和AI局部修改，但是可以全文修改">👁️ 切换渲染模式</button>
                 <div class="dropdown" style="display: inline-block; position: relative;">
                     <button class="dropbtn" onclick="toggleDropdown()">⬇️ 下载 ▼</button>
                     <div class="dropdown-content" id="downloadDropdown">
@@ -66,9 +91,9 @@
             <button class="ai-btn btn-purple" onclick="openModal('ref-modal')">📚 参考资料</button>
             <button class="ai-btn btn-purple" onclick="openModal('tech-modal')">💡 技能</button>
             <button class="ai-btn btn-purple" onclick="openModal('sysprompt-modal')" style="display: none;">🤖 System Prompt</button>
-			<div style="width: 1px; height: 24px; background-color: var(--border-color); margin: 0 5px;"></div>
-			<button class="ai-btn btn-orange" onclick="openModal('config-modal')">⚙️ LLM配置</button>
-			<button class="ai-btn btn-orange" onclick="openModal('guide-modal')">📖 帮助</button>
+            <div style="width: 1px; height: 24px; background-color: var(--border-color); margin: 0 5px;"></div>
+            <button class="ai-btn btn-orange" onclick="openModal('config-modal')">⚙️ LLM配置</button>
+            <button class="ai-btn btn-orange" onclick="openModal('guide-modal')">📖 帮助</button>
             
         </div>
 
@@ -104,7 +129,6 @@
         </div>
     </div>
 
-    <!-- 悬浮工具栏 -->
     <div id="floating-toolbar" class="floating-toolbar">
         <button onclick="floatingAction('polish')">✨ 润色</button>
         <button onclick="floatingAction('rewrite')">📝 扩写</button>
@@ -113,7 +137,6 @@
 
     <div id="modal-overlay" class="modal-overlay">
 
-        <!-- 历史版本弹窗 -->
         <div id="history-modal" class="modal" style="display: none; width: 900px; max-width: 95vw;">
             <div class="modal-header">
                 <span>历史版本管理</span>
@@ -133,7 +156,6 @@
             </div>
         </div>
 
-        <!-- 写作技能弹窗 -->
         <div id="tech-modal" class="modal" style="display: none; width: 850px; max-width: 95vw;">
             <div class="modal-header">
                 <span>写作技能管理</span>
@@ -154,22 +176,13 @@
                         <label>技能描述</label>
                         <textarea id="tech-desc" placeholder="详细的指导说明..." style="height:100%; min-height:120px;"></textarea>
                     </div>
-                    <div class="modal-group" style="flex-direction: row; align-items: center; gap: 8px;">
-                        <input type="checkbox" id="tech-enabled">
-                        <label for="tech-enabled" style="font-weight:bold; cursor:pointer;">调用LLM时启用此技能</label>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-                        <button class="btn-modal btn-cancel" onclick="deleteTechnique()" id="btn-del-tech" style="color:red;">删除</button>
-                        <div style="display:flex; gap:10px;">
-                            <button class="btn-modal btn-cancel" onclick="addNewTechnique()">新建技能</button>
-                            <button class="btn-modal btn-confirm" onclick="saveTechnique()">保存</button>
-                        </div>
+                    <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+                        <button class="btn-modal btn-confirm" onclick="saveTechnique()">保存修改</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- 批量替换弹窗 -->
         <div id="replace-modal" class="modal" style="display: none;">
             <div class="modal-header">
                 <span>批量替换文本</span>
@@ -193,7 +206,6 @@
             </div>
         </div>
 
-        <!-- 配置弹窗 -->
         <div id="config-modal" class="modal" style="display: none;">
             <div class="modal-header">
                 <span>LLM 接口配置</span>
@@ -221,7 +233,6 @@
             </div>
         </div>
 
-        <!-- 参考资料弹窗 (已重构变宽、高度自适应拉满) -->
         <div id="ref-modal" class="modal" style="display: none; width: 850px; max-width: 95vw; height: 75vh;">
             <div class="modal-header">
                 <span>管理参考资料</span>
@@ -255,7 +266,6 @@
             </div>
         </div>
 
-        <!-- 使用说明弹窗 (新增) -->
         <div id="guide-modal" class="modal" style="display: none; width: 850px; max-width: 95vw;">
             <div class="modal-header">
                 <span>📖 智能写作助手 使用说明</span>
@@ -310,7 +320,7 @@
 
     <script src="js/html-docx.min.js"></script>
     <script>
-		// --- 核心配置初始化 ---
+        // --- 核心配置初始化 ---
         if (typeof marked !== 'undefined') {
             marked.setOptions({
                 highlight: function (code, lang) {
@@ -372,8 +382,36 @@
         let currentTechIndex = -1;
         let interactionHistory = [];
 
-        // 根据要求重构的只读 System Prompt
-        const sysPromptText = `# Role: 顶尖Markdown写作助手与排版专家\n\n## Profile:\n- author: AI Writing Assistant System\n- version: 2.1\n- language: 中文\n- description: 你是一个具备深厚文字功底的专业写作助手。你的核心使命是严格遵循用户的各项标签指令，高效、精准地进行文本处理。\n\n## Input Tags Description (输入标签定义):\n为了让你更好地理解上下文，系统会通过以下XML标签向你输送信息：\n- <edit_mode>: 本次修改的模式（全文修改、局部修改、末尾追加）。\n- <task_instruction>: 用户给你的具体执行指令。\n- <full_context>: 完整的文章内容。\n- <target_text_to_process>: 当进行局部修改时，这里是你需要重点处理的目标文本。\n- <before_selection> / <after_selection>: 局部修改时，目标文本前后的上下文（仅供参考，绝对不要包含在你的输出中）。\n- <reference_material>: 用户提供的高价值私域知识与参考资料。你必须将其作为重要的事实依据，从中提取关键信息来支撑你的创作，同时确保最终生成的内容紧密贴合当前的写作主题与逻辑上下文，不可生搬硬套。\n\n## Strict Rules (绝对约束):\n1. **【零废话原则】**：你的输出将被程序直接用于替换或追加文档内容。严禁输出任何开场白、解释说明或总结。\n2. **【模式执行与边界控制】**（核心）：\n   - 若 <edit_mode> 为 "全文修改"：必须输出修改后的完整文章全文，不要遗漏未修改的部分。\n   - 若 <edit_mode> 为 "局部修改"：仅输出对 <target_text_to_process> 处理后的结果，绝对禁止包含前后上下文！\n   - 若 <edit_mode> 为 "末尾追加"：仅输出生成的新内容，绝对禁止重复输出已有的 <full_context> 内容！\n3. **【禁止代码块包裹】**：除非要求编写代码，否则绝对禁止使用 Markdown 代码块 (\`\`\`) 包裹正文。\n`;
+        const sysPromptText = `# Role: 顶尖写作助手与文字处理专家
+
+## Profile:
+- author: AI Writing Assistant System
+- version: 2.2
+- language: 中文
+- description: 你是一个具备深厚文字功底的专业写作助手。你的核心使命是严格遵循用户的各项标签指令，高效、精准地进行文本处理。
+
+## Input Tags Description (输入标签定义):
+为了让你更好地理解上下文，系统会通过以下XML标签向你输送信息：
+- <edit_mode>: 本次修改的模式（全文修改、局部修改、末尾追加）。
+- <task_instruction>: 用户给你的具体执行指令。
+- <full_context>: 完整的文章内容。
+- <target_text_to_process>: 当进行局部修改时，这里是你需要重点处理的目标文本。
+- <before_selection> / <after_selection>: 局部修改时，目标文本前后的上下文（仅供参考，绝对不要包含在你的输出中）。
+- <reference_material>: 用户提供的高价值私域知识与参考资料。你必须将其作为重要的事实依据，从中提取关键信息来支撑你的创作，同时确保最终生成的内容紧密贴合当前的写作主题与逻辑上下文，不可生搬硬套。
+
+## 格式与排版
+本系统支持对markdown文字进行渲染，格式遵循以下规范：
+1. 仅使用标准的markdown语法
+2. 较长的全文内容，采用带序号的一级或二级序号做标题，例如：## 1. 第一章， ### 1.1 第1小节...
+3. 技术性较强的内容可以使用表格、公式、mermaid图
+
+## Strict Rules (绝对约束):
+1. **【零废话原则】**：你的输出将被程序直接用于替换或追加文档内容。严禁输出任何开场白、解释说明或总结。
+2. **【模式执行与边界控制】**（核心）：
+   - 若 <edit_mode> 为 "全文修改"：必须输出修改后的完整文章全文，不要遗漏未修改的部分。
+   - 若 <edit_mode> 为 "局部修改"：仅输出对 <target_text_to_process> 处理后的结果，绝对禁止包含前后上下文！
+   - 若 <edit_mode> 为 "末尾追加"：仅输出生成的新内容，绝对禁止重复输出已有的 <full_context> 内容！
+`;
 
         let lastLLMReq = "";
         let lastLLMRes = "";
@@ -428,8 +466,7 @@
         const statusIcon = document.getElementById('llm-status-icon');
 
         window.onload = async () => {
-            // 设置友好的多行占位符（完美解决空文本显示引导的问题）
-            editor.placeholder = emptyPromptMarkdown;
+            editor.placeholder = "在此输入或粘贴您的文章正文...\n点击下方“帮助”按钮可以查看使用说明";
 
             await initDB();
             const savedHistory = await dbGet('writer_history');
@@ -452,7 +489,6 @@
             updateUI();
             document.getElementById('sys-content').value = sysPromptText;
 
-            // 拦截焦点
             const toolButtons = document.querySelectorAll('.tools-basic button, .ai-tools button');
             toolButtons.forEach(btn => {
                 btn.addEventListener('mousedown', function (e) {
@@ -462,7 +498,6 @@
                 });
             });
 
-            // 监听编辑器选区变化来显示悬浮框和 Hint
             editor.addEventListener('mouseup', handleEditorSelection);
             editor.addEventListener('keyup', handleEditorSelection);
 
@@ -491,7 +526,6 @@
             }
         }
 
-        // 更新提交提示文字区域
         function updateSelectionHint() {
             if (isPreviewMode) return;
             const start = editor.selectionStart;
@@ -517,7 +551,6 @@
             }
         }
 
-        // 悬浮工具栏响应：不直接提交，而是填装 Prompt 并让用户决定
         function floatingAction(mode) {
             setPromptMode(mode);
             document.getElementById('floating-toolbar').style.display = 'none';
@@ -549,20 +582,12 @@
             }
         }
 
-
         function downloadDocx() {
             const text = editor.value;
-            if (!text.trim()) {
-                alert("当前文章为空，暂无内容可下载！");
-                return;
-            }
-            if (typeof htmlDocx === 'undefined') {
-                alert("找不到 html-docx 插件，请确保 js/html-docx.min.js 已正确加载。");
-                return;
-            }
+            if (!text.trim()) { alert("当前文章为空，暂无内容可下载！"); return; }
+            if (typeof htmlDocx === 'undefined') { alert("找不到 html-docx 插件。"); return; }
             let htmlContent = marked.parse(text);
             let fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Document</title></head><body>${htmlContent}</body></html>`;
-            
             var converted = htmlDocx.asBlob(fullHtml);
             var url = URL.createObjectURL(converted);
             var a = document.createElement('a');
@@ -570,31 +595,20 @@
             const now = new Date();
             const timeStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
             a.download = `文章正文_${timeStr}.docx`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
         }
 
         function downloadMarkdown() {
             const text = editor.value;
-            if (!text.trim()) {
-                alert("当前文章为空，暂无内容可下载！");
-                return;
-            }
+            if (!text.trim()) { alert("当前文章为空，暂无内容可下载！"); return; }
             const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-
             const now = new Date();
             const timeStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
             a.download = `文章正文_${timeStr}.md`;
-
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
         }
 
         let timeout = null;
@@ -610,14 +624,9 @@
             if (historyIndex >= 0 && history[historyIndex] === text) return;
             history = history.slice(0, historyIndex + 1);
             history.push(text);
-
-            if (history.length > 30) {
-                history.shift();
-            }
+            if (history.length > 30) history.shift();
             historyIndex = history.length - 1;
-
             dbSet('writer_history', history);
-
             const now = new Date();
             saveTimeEl.innerText = `最后保存: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
         }
@@ -631,7 +640,6 @@
             }
         }
 
-        // 清空内容时，只需要把 value 置空，美观的 Placeholder 将自动浮现
         function clearContent() {
             if (confirm('确定要清空文章正文吗？支持撤回。')) {
                 editor.value = '';
@@ -646,41 +654,23 @@
             const container = document.getElementById('history-list-container');
             container.innerHTML = '';
             document.getElementById('history-detail-text').value = '';
-
             const btnRestore = document.getElementById('btn-restore-history');
-            btnRestore.disabled = true;
-            btnRestore.innerText = '恢复此版本';
+            btnRestore.disabled = true; btnRestore.innerText = '恢复此版本';
             currentSelectedHistoryIndex = -1;
-
-            if (history.length === 0) {
-                container.innerHTML = '<p style="color:#aaa; text-align:center; padding: 20px;">暂无历史记录</p>';
-                return;
-            }
-
+            if (history.length === 0) { container.innerHTML = '<p style="color:#aaa; text-align:center; padding: 20px;">暂无历史记录</p>'; return; }
             for (let i = history.length - 1; i >= 0; i--) {
                 const text = history[i];
                 const previewText = text ? text.substring(0, 30).replace(/\n/g, ' ') + '...' : '[空文本]';
                 const words = text.match(/[\u4e00-\u9fa5]|[a-zA-Z0-9]+/g);
                 const wordCount = words ? words.length : 0;
-
                 const item = document.createElement('div');
-                item.className = 'history-item';
-                item.id = 'history-item-' + i;
-
+                item.className = 'history-item'; item.id = 'history-item-' + i;
                 const isCurrent = i === historyIndex;
                 const titleStr = isCurrent ? `版本 ${i + 1} (当前)` : `版本 ${i + 1}`;
-
-                item.innerHTML = `
-                    <div class="history-info">
-                        <div class="history-title" style="${isCurrent ? 'color: var(--btn-primary);' : ''}">${titleStr}</div>
-                        <div style="font-size:12px; color:#888;">字数: ${wordCount}</div>
-                        <div class="history-preview" title="${text}">${previewText}</div>
-                    </div>
-                `;
+                item.innerHTML = `<div class="history-info"><div class="history-title" style="${isCurrent ? 'color: var(--btn-primary);' : ''}">${titleStr}</div><div style="font-size:12px; color:#888;">字数: ${wordCount}</div><div class="history-preview" title="${text}">${previewText}</div></div>`;
                 item.onclick = () => selectHistory(i);
                 container.appendChild(item);
             }
-
             const defaultIndex = historyIndex >= 0 ? historyIndex : history.length - 1;
             if (history.length > 0) selectHistory(defaultIndex);
         }
@@ -690,25 +680,16 @@
             document.querySelectorAll('#history-list-container .history-item').forEach(el => el.classList.remove('active'));
             const activeItem = document.getElementById('history-item-' + index);
             if (activeItem) activeItem.classList.add('active');
-
             document.getElementById('history-detail-text').value = history[index] || "";
-
             const btn = document.getElementById('btn-restore-history');
-            if (index === historyIndex) {
-                btn.disabled = true;
-                btn.innerText = '当前正处于此版本';
-            } else {
-                btn.disabled = false;
-                btn.innerText = '恢复此版本';
-            }
+            if (index === historyIndex) { btn.disabled = true; btn.innerText = '当前正处于此版本'; } 
+            else { btn.disabled = false; btn.innerText = '恢复此版本'; }
         }
 
         function restoreSelectedHistory() {
             if (currentSelectedHistoryIndex >= 0 && currentSelectedHistoryIndex < history.length) {
                 editor.value = history[currentSelectedHistoryIndex] || "";
-                saveState(editor.value);
-                updateUI();
-                closeModal();
+                saveState(editor.value); updateUI(); closeModal();
             }
         }
 
@@ -716,29 +697,100 @@
         function renderTechList() {
             const container = document.getElementById('tech-list-container');
             container.innerHTML = '';
+            
             techniques.forEach((tech, i) => {
                 const item = document.createElement('div');
                 item.className = 'history-item';
+                item.style.display = 'flex';
+                item.style.flexDirection = 'column';
+                item.style.gap = '8px';
+                item.style.cursor = 'pointer';
                 if (i === currentTechIndex) item.classList.add('active');
-                item.innerHTML = `
-                    <div class="history-info">
-                        <div class="history-title">${tech.title} ${tech.enabled ? '<span style="color:green;font-size:12px;">(已启用)</span>' : '<span style="color:#aaa;font-size:12px;">(禁用)</span>'}</div>
-                    </div>
-                `;
                 item.onclick = () => selectTech(i);
+                
+                // 第一行：技能标题
+                const topRow = document.createElement('div');
+                topRow.innerHTML = `<div class="tech-item-title">${tech.title}</div>`;
+                
+                // 第二行：操作区
+                const bottomRow = document.createElement('div');
+                bottomRow.style.display = 'flex';
+                bottomRow.style.alignItems = 'center';
+                bottomRow.style.justifyContent = 'flex-end';
+                bottomRow.style.gap = '10px'; 
+                
+                // 启用/停用开关
+                const toggleBtn = document.createElement('button');
+                toggleBtn.className = 'tech-item-btn';
+                toggleBtn.innerHTML = tech.enabled ? '<span style="color:#2e7d32;">🟢 已启用</span>' : '<span style="color:#757575;">⚪ 已停用</span>';
+                toggleBtn.title = tech.enabled ? '点击停用' : '点击启用';
+                toggleBtn.onclick = (e) => { e.stopPropagation(); toggleTechEnabled(i); };
+                
+                // 删除按钮
+                const delBtn = document.createElement('button');
+                delBtn.className = 'tech-item-btn';
+                delBtn.innerHTML = '<span style="color:#d32f2f;">🗑️ 删除</span>';
+                delBtn.title = '删除技能';
+                delBtn.style.opacity = '0.7';
+                delBtn.onmouseenter = () => delBtn.style.opacity = '1';
+                delBtn.onmouseleave = () => delBtn.style.opacity = '0.7';
+                delBtn.onclick = (e) => { e.stopPropagation(); deleteTechFromList(i); };
+
+                bottomRow.appendChild(toggleBtn);
+                bottomRow.appendChild(delBtn);
+                
+                item.appendChild(topRow);
+                item.appendChild(bottomRow);
                 container.appendChild(item);
             });
+
+            // 添加底部的新建技能按钮
+            const addBtnContainer = document.createElement('div');
+            addBtnContainer.style.marginTop = '15px';
+            addBtnContainer.style.padding = '0 10px';
+            const addBtn = document.createElement('button');
+            addBtn.className = 'btn-modal btn-cancel';
+            addBtn.style.width = '100%';
+            addBtn.innerHTML = '➕ 新建技能';
+            addBtn.onclick = addNewTechnique;
+            addBtnContainer.appendChild(addBtn);
+            
+            container.appendChild(addBtnContainer);
 
             if (techniques.length === 0) selectTech(-1);
             else if (currentTechIndex === -1 || currentTechIndex >= techniques.length) selectTech(0);
         }
 
+        async function toggleTechEnabled(index) {
+            if (index >= 0 && techniques[index]) {
+                techniques[index].enabled = !techniques[index].enabled;
+                await dbSet('writer_techniques', techniques);
+                renderTechList();
+            }
+        }
+
+        async function deleteTechFromList(index) {
+            if (index >= 0 && techniques[index]) {
+                if (confirm(`确定要删除技能「${techniques[index].title}」吗？`)) {
+                    techniques.splice(index, 1);
+                    await dbSet('writer_techniques', techniques);
+                    if (currentTechIndex === index) {
+                        currentTechIndex = techniques.length > 0 ? 0 : -1;
+                    } else if (currentTechIndex > index) {
+                        currentTechIndex--;
+                    }
+                    renderTechList();
+                    selectTech(currentTechIndex);
+                }
+            }
+        }
+
         function selectTech(index) {
             currentTechIndex = index;
-            document.querySelectorAll('#tech-list-container .history-item').forEach(el => el.classList.remove('active'));
-            if (index >= 0) {
-                const activeItem = document.getElementById('tech-list-container').children[index];
-                if (activeItem) activeItem.classList.add('active');
+            const items = document.querySelectorAll('#tech-list-container .history-item');
+            items.forEach(el => el.classList.remove('active'));
+            if (index >= 0 && items[index]) {
+                items[index].classList.add('active');
             }
 
             if (index >= 0 && techniques[index]) {
@@ -746,47 +798,42 @@
                 document.getElementById('tech-title').value = tech.title;
                 document.getElementById('tech-condition').value = tech.condition;
                 document.getElementById('tech-desc').value = tech.description;
-                document.getElementById('tech-enabled').checked = tech.enabled;
-                document.getElementById('btn-del-tech').style.display = 'block';
             } else {
                 document.getElementById('tech-title').value = '';
                 document.getElementById('tech-condition').value = '';
                 document.getElementById('tech-desc').value = '';
-                document.getElementById('tech-enabled').checked = true;
-                document.getElementById('btn-del-tech').style.display = 'none';
             }
         }
 
         function addNewTechnique() {
-            const newTech = { id: Date.now(), title: '未命名技能', condition: '', description: '', enabled: true };
-            techniques.push(newTech);
-            currentTechIndex = techniques.length - 1;
-            renderTechList();
+            currentTechIndex = -1;
+            document.querySelectorAll('#tech-list-container .history-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('tech-title').value = '';
+            document.getElementById('tech-condition').value = '';
+            document.getElementById('tech-desc').value = '';
             document.getElementById('tech-title').focus();
         }
 
         async function saveTechnique() {
-            if (currentTechIndex >= 0 && techniques[currentTechIndex]) {
-                const tech = techniques[currentTechIndex];
-                tech.title = document.getElementById('tech-title').value.trim() || '未命名技能';
-                tech.condition = document.getElementById('tech-condition').value.trim();
-                tech.description = document.getElementById('tech-desc').value.trim();
-                tech.enabled = document.getElementById('tech-enabled').checked;
-                await dbSet('writer_techniques', techniques);
-                renderTechList();
-                alert('写作技能已保存！');
-            }
-        }
+            const title = document.getElementById('tech-title').value.trim() || '未命名技能';
+            const condition = document.getElementById('tech-condition').value.trim();
+            const desc = document.getElementById('tech-desc').value.trim();
 
-        async function deleteTechnique() {
-            if (currentTechIndex >= 0 && techniques[currentTechIndex]) {
-                if (confirm('确定要删除此写作技能吗？此操作不可恢复。')) {
-                    techniques.splice(currentTechIndex, 1);
-                    await dbSet('writer_techniques', techniques);
-                    currentTechIndex = techniques.length > 0 ? 0 : -1;
-                    renderTechList();
-                }
+            if (currentTechIndex === -1) {
+                // 新增
+                const newTech = { id: Date.now(), title: title, condition: condition, description: desc, enabled: true };
+                techniques.push(newTech);
+                currentTechIndex = techniques.length - 1;
+            } else if (currentTechIndex >= 0 && techniques[currentTechIndex]) {
+                // 修改
+                const tech = techniques[currentTechIndex];
+                tech.title = title;
+                tech.condition = condition;
+                tech.description = desc;
             }
+            await dbSet('writer_techniques', techniques);
+            renderTechList();
+            alert('写作技能已保存！');
         }
 
         function updateUI() {
@@ -800,7 +847,6 @@
             const words = text.match(/[\u4e00-\u9fa5]|[a-zA-Z0-9]+/g);
             wordCountEl.innerText = `字数: ${words ? words.length : 0}`;
         }
-
 
         function toggleDropdown() {
             document.getElementById("downloadDropdown").classList.toggle("show");
@@ -837,49 +883,81 @@
 
         async function renderMarkdownView() {
             let text = editor.value;
-            // 核心修改：如果是空文本，直接渲染出精美的 Markdown 排版帮助！
-            if (!text.trim()) {
-                text = emptyPromptMarkdown;
-            }
-
+            // if (!text.trim()) text = emptyPromptMarkdown;
+            
             try {
+                // 1. 公式保护机制：在 marked 解析前，把公式抽离成占位符，防止 _ 和 * 被错误解析成斜体/粗体
+                const mathBlocks = [];
+                let placeholderText = text.replace(/(\$\$[\s\S]*?\$\$|\$[^$\n]*?\$)/g, (match) => {
+                    mathBlocks.push(match);
+                    return `XYZMATHBLOCK${mathBlocks.length - 1}XYZ`; // 纯字母占位符，不会触发 Markdown
+                });
+
+                // 2. 渲染 Markdown
+                let html;
                 if (typeof marked !== 'undefined') {
-                    preview.innerHTML = marked.parse(text);
+                    html = marked.parse(placeholderText);
                 } else {
-                    preview.innerHTML = `<pre>${text}</pre>`;
+                    html = `<pre>${placeholderText}</pre>`;
                 }
 
+                // 3. 将公式占位符替换回真实的数学公式
+                html = html.replace(/XYZMATHBLOCK(\d+)XYZ/g, (match, i) => {
+                    return mathBlocks[i];
+                });
+
+                preview.innerHTML = html;
+
+                // 4. 调用 KaTeX 渲染公式
                 if (typeof renderMathInElement !== 'undefined') {
                     renderMathInElement(preview, {
                         delimiters: [
-                            { left: '$$', right: '$$', display: true },
+                            { left: '$$', right: '$$', display: true }, 
                             { left: '$', right: '$', display: false },
-                            { left: '\\(', right: '\\)', display: false },
+                            { left: '\\(', right: '\\)', display: false }, 
                             { left: '\\[', right: '\\]', display: true }
-                        ],
+                        ], 
                         throwOnError: false
                     });
                 }
 
+                // 5. 渲染 Mermaid 图表
                 if (typeof mermaid !== 'undefined') {
                     const mermaidBlocks = preview.querySelectorAll('.language-mermaid');
                     for (let i = 0; i < mermaidBlocks.length; i++) {
                         const block = mermaidBlocks[i];
-                        const code = block.textContent;
+                        const code = block.textContent; // 获取纯净的代码文本
+                        
                         const container = document.createElement('div');
                         container.className = 'mermaid';
+                        
                         try {
-                            const { svg } = await mermaid.render('mermaid-chart-' + i, code);
-                            container.innerHTML = svg;
-                            block.parentNode.replaceWith(container);
+                            // 加入 Date.now() 确保每次切换渲染模式时 ID 绝对唯一，防止冲突
+                            const chartId = 'mermaid-chart-' + Date.now() + '-' + i;
+                            const renderResult = await mermaid.render(chartId, code);
+                            
+                            // 兼容旧版 Mermaid (v9 返回 string) 与 新版 (v10+ 返回对象 {svg})
+                            container.innerHTML = typeof renderResult === 'string' ? renderResult : renderResult.svg;
+                            
+                            // 替换原有的 <pre> 代码块
+                            if (block.parentNode && block.parentNode.tagName === 'PRE') {
+                                block.parentNode.replaceWith(container);
+                            } else {
+                                block.replaceWith(container);
+                            }
                         } catch (e) {
-                            container.innerHTML = `<pre style="color:red; font-size: 12px;">Mermaid Syntax Error:\n${e.message}</pre>`;
-                            block.parentNode.replaceWith(container);
+                            console.error("Mermaid Render Error:", e);
+                            container.innerHTML = `<pre style="color:red; font-size: 12px; background: #fee; padding: 10px;">Mermaid Syntax Error:\n${e.message}</pre>`;
+                            if (block.parentNode && block.parentNode.tagName === 'PRE') {
+                                block.parentNode.replaceWith(container);
+                            } else {
+                                block.replaceWith(container);
+                            }
                         }
                     }
                 }
-            } catch (err) {
-                preview.innerHTML = `<p style="color:red">渲染发生错误: ${err.message}</p>`;
+            } catch (err) { 
+                preview.innerHTML = `<p style="color:red">渲染发生致命错误: ${err.message}</p>`; 
             }
         }
 
@@ -898,9 +976,7 @@
                 const title = match[2];
                 const div = document.createElement('div');
                 div.className = `outline-item outline-h${level}`;
-                div.innerText = title;
-                div.title = title;
-
+                div.innerText = title; div.title = title;
                 const matchIndex = match.index;
                 const currentHeadingIndex = headingIndex;
 
@@ -908,36 +984,17 @@
                     if (!isPreviewMode) {
                         editor.focus();
                         editor.setSelectionRange(matchIndex, matchIndex);
-
-                        // 【完美解决大纲错位】：通过隐藏的幽灵 div 精确计算由于折行产生的真实高度
                         const clone = document.createElement('div');
                         const style = window.getComputedStyle(editor);
-                        clone.style.cssText = `
-                            position: absolute;
-                            visibility: hidden;
-                            white-space: pre-wrap;
-                            word-wrap: break-word;
-                            overflow-wrap: break-word;
-                            font-family: ${style.fontFamily};
-                            font-size: ${style.fontSize};
-                            line-height: ${style.lineHeight};
-                            padding: ${style.padding};
-                            width: ${editor.clientWidth}px;
-                            box-sizing: border-box;
-                        `;
+                        clone.style.cssText = `position: absolute; visibility: hidden; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; font-family: ${style.fontFamily}; font-size: ${style.fontSize}; line-height: ${style.lineHeight}; padding: ${style.padding}; width: ${editor.clientWidth}px; box-sizing: border-box;`;
                         clone.textContent = text.substring(0, matchIndex);
                         document.body.appendChild(clone);
                         const scrollY = clone.offsetHeight;
                         document.body.removeChild(clone);
-
-                        // 滚动到精确高度，补偿内边距使得标题刚好在顶部框内
                         editor.scrollTop = scrollY - parseInt(style.paddingTop || 20);
-
                     } else {
                         const headings = preview.querySelectorAll('h1, h2, h3');
-                        if (headings[currentHeadingIndex]) {
-                            headings[currentHeadingIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
+                        if (headings[currentHeadingIndex]) headings[currentHeadingIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
                 };
                 outlineList.appendChild(div);
@@ -946,9 +1003,6 @@
             if (count === 0) outlineList.innerHTML = '<div style="color:#aaa; font-size:12px;">暂无目录结构</div>';
         }
 
-        // ====================================================================
-        // 【重构核心】：抽离繁复的硬编码预设，保证加载逻辑清爽可读
-        // ====================================================================
         const DEFAULT_TECHNIQUES = [
             {
                 id: 1,
@@ -1047,53 +1101,29 @@ graph TD
 
         async function loadLocalData() {
             try {
-                // 并发执行数据库读取，缩短初始化等待时间
                 const [savedConfig, savedRef, savedInteraction, savedTech] = await Promise.all([
-                    dbGet('writer_llm_config'),
-                    dbGet('writer_ref_data'),
-                    dbGet('writer_interaction_history'),
-                    dbGet('writer_techniques')
+                    dbGet('writer_llm_config'), dbGet('writer_ref_data'), dbGet('writer_interaction_history'), dbGet('writer_techniques')
                 ]);
-
                 if (savedConfig) Object.assign(appConfig, savedConfig);
                 if (savedRef) refData = savedRef;
                 if (savedInteraction) interactionHistory = savedInteraction;
 
-                // 优雅合并与更新写作技能
                 if (savedTech && savedTech.length > 0) {
                     techniques = savedTech;
                     let needSave = false;
-
-                    // 遍历预设技能池，完成静默升级与数据修补
                     for (const defTech of DEFAULT_TECHNIQUES) {
                         const existTech = techniques.find(t => t.id === defTech.id);
                         if (existTech) {
-                            // 强制更新内置文案描述，防止版本迭代后用户端文案旧化
-                            if (existTech.description !== defTech.description) {
-                                existTech.description = defTech.description;
-                                needSave = true;
-                            }
-                        } else {
-                            // 若本地数据中缺失新的预设（如新增的小说技能），则将其压入
-                            techniques.push({ ...defTech });
-                            needSave = true;
-                        }
+                            if (existTech.description !== defTech.description) { existTech.description = defTech.description; needSave = true; }
+                        } else { techniques.push({ ...defTech }); needSave = true; }
                     }
-
-                    if (needSave) {
-                        await dbSet('writer_techniques', techniques);
-                    }
+                    if (needSave) await dbSet('writer_techniques', techniques);
                 } else {
-                    // 若无历史技能数据，直接深拷贝默认数组进行初始化
                     techniques = DEFAULT_TECHNIQUES.map(t => ({ ...t }));
                     await dbSet('writer_techniques', techniques);
                 }
-            } catch (error) {
-                console.error("Failed to load local data:", error);
-            }
+            } catch (error) { console.error("Failed to load local data:", error); }
         }
-        // ====================================================================
-
 
         function openModal(modalId) {
             document.getElementById('modal-overlay').style.display = 'flex';
@@ -1110,15 +1140,11 @@ graph TD
                 document.getElementById('tech-title').value = '';
                 document.getElementById('tech-condition').value = '';
                 document.getElementById('tech-desc').value = '';
-                document.getElementById('tech-enabled').checked = true;
                 currentTechIndex = -1;
-            } else if (modalId === 'history-modal') {
-                renderHistoryList();
-            } else if (modalId === 'guide-modal') {
-                document.getElementById('guide-content').innerHTML = marked.parse(emptyPromptMarkdown);
-            } else if (modalId === 'sysprompt-modal') {
-                document.getElementById('sys-content').value = appConfig.sysPrompt || sysPromptText || '';
-            } else if (modalId === 'ref-modal') {
+            } else if (modalId === 'history-modal') { renderHistoryList(); } 
+            else if (modalId === 'guide-modal') { document.getElementById('guide-content').innerHTML = marked.parse(emptyPromptMarkdown); } 
+            else if (modalId === 'sysprompt-modal') { document.getElementById('sys-content').value = appConfig.sysPrompt || sysPromptText || ''; } 
+            else if (modalId === 'ref-modal') {
                 document.getElementById('ref-content').value = refData.content || '';
                 document.getElementById('ref-enabled').checked = refData.enabled || false;
             }
@@ -1134,18 +1160,12 @@ graph TD
             const targetStr = document.getElementById('repl-target').value;
             const isRegex = document.getElementById('repl-regex').checked;
             if (!searchStr) return;
-
             try {
                 let content = editor.value;
-                if (isRegex) { content = content.replace(new RegExp(searchStr, 'g'), targetStr); }
-                else { content = content.split(searchStr).join(targetStr); }
-
-                editor.value = content;
-                saveState(content);
-                updateUI();
-                closeModal();
-                document.getElementById('repl-search').value = '';
-                document.getElementById('repl-target').value = '';
+                if (isRegex) content = content.replace(new RegExp(searchStr, 'g'), targetStr);
+                else content = content.split(searchStr).join(targetStr);
+                editor.value = content; saveState(content); updateUI(); closeModal();
+                document.getElementById('repl-search').value = ''; document.getElementById('repl-target').value = '';
             } catch (e) { alert("替换出错: " + e.message); }
         }
 
@@ -1154,330 +1174,340 @@ graph TD
             appConfig.key = document.getElementById('cfg-key').value.trim();
             appConfig.model = document.getElementById('cfg-model').value.trim();
             appConfig.temp = parseFloat(document.getElementById('cfg-temp').value) || 0.7;
-            dbSet('writer_llm_config', appConfig);
-            closeModal();
+            dbSet('writer_llm_config', appConfig); closeModal();
         }
 
         function readLocalFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+            const file = event.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = function (e) { document.getElementById('ref-content').value = e.target.result; };
-            reader.readAsText(file);
-            event.target.value = '';
+            reader.readAsText(file); event.target.value = '';
         }
 
         function saveReference() {
             refData.content = document.getElementById('ref-content').value;
             refData.enabled = document.getElementById('ref-enabled').checked;
-            dbSet('writer_ref_data', refData);
-            closeModal();
+            dbSet('writer_ref_data', refData); closeModal();
         }
 
         function showLLMDetails() {
             if (statusIcon.classList.contains('idle') || statusIcon.classList.contains('loading')) return;
-
             document.getElementById('llm-req-text').value = lastLLMReq;
             document.getElementById('llm-res-text').value = lastLLMRes;
-
             const errGroup = document.getElementById('llm-error-group');
-            if (lastLLMErr) {
-                errGroup.style.display = 'flex';
-                document.getElementById('llm-error-msg').innerText = lastLLMErr;
-            } else {
-                errGroup.style.display = 'none';
-            }
+            if (lastLLMErr) { errGroup.style.display = 'flex'; document.getElementById('llm-error-msg').innerText = lastLLMErr; } 
+            else { errGroup.style.display = 'none'; }
             openModal('llm-details-modal');
         }
 
-        // 修改为只填装Prompt并调整模式下拉框，交由用户点击“提交”触发
         function setPromptMode(mode) {
             const modeSelect = document.getElementById('llm-mode-select');
-            const start = editor.selectionStart;
-            const end = editor.selectionEnd;
+            const start = editor.selectionStart; const end = editor.selectionEnd;
             const promptInput = document.getElementById('llm-prompt');
 
-            // 移除可能存在的 local-preview 选项
             for(let i = 0; i < modeSelect.options.length; i++) {
-                if(modeSelect.options[i].value === 'local-preview') {
-                    modeSelect.remove(i);
-                    break;
-                }
+                if(modeSelect.options[i].value === 'local-preview') { modeSelect.remove(i); break; }
             }
 
             if (mode === 'ai_gen') {
                 modeSelect.value = 'append';
-                promptInput.value = '请仔细阅读提供的【完整文章上下文】，在此基础上继续生成后续内容。要求：逻辑连贯，输出合理的Markdown章节标题（如 ## 或 ###）和段落。';
+                promptInput.value = '请仔细阅读提供的【完整文章上下文】，在此基础上继续生成后续内容。要求：逻辑连贯，格式排版、语言风格与前文一致。';
             } else {
-                if (start !== end && !isPreviewMode) {
-                    modeSelect.value = 'local';
-                } else {
-                    modeSelect.value = 'full';
-                }
-                if (mode === 'rewrite') {
-                    promptInput.value = '把当前内容展开描写，补充详细内容，或者补充具体例子';
-                } else if (mode === 'summarize') {
-                    promptInput.value = '对当前内容提炼主要内容和观点，编写更概况性的内容';
-                } else if (mode === 'polish') {
-                    promptInput.value = '请对文本进行精修润色。要求：纠正所有的错别字、标点错误和语法问题，提升词汇的高级感与专业度，使行文更加自然，严格保持原文主旨不变。';
-                }
+                if (start !== end && !isPreviewMode) modeSelect.value = 'local';
+                else modeSelect.value = 'full';
+                if (mode === 'rewrite') promptInput.value = '把当前内容展开描写，补充详细内容，或者补充具体例子';
+                else if (mode === 'summarize') promptInput.value = '对当前内容提炼主要内容和观点，编写更概况性的内容';
+                else if (mode === 'polish') promptInput.value = '请对文本进行精修润色。要求：纠正所有的错别字、标点错误和语法问题，提升词汇的高级感与专业度，使行文更加自然，严格保持原文主旨不变。';
             }
-            updateSelectionHint();
-            promptInput.focus();
+            updateSelectionHint(); promptInput.focus();
         }
 
+        // 1. 主控函数：负责整体请求调度与异常捕获
         async function submitToLLM() {
             const promptInput = document.getElementById('llm-prompt').value.trim();
             if (!promptInput) { alert("请输入需要发送给 LLM 的指令！"); return; }
             if (!appConfig.url) { alert("请先在 [⚙️ LLM配置] 中设置正确的接口 URL。"); return; }
 
-            const modeSelect = document.getElementById('llm-mode-select').value;
-            let modeStr = '';
-            if (modeSelect === 'full') modeStr = '全文修改';
-            else if (modeSelect === 'local') modeStr = '局部修改';
-            
-            else if (modeSelect === 'append') modeStr = '末尾追加';
-
-            const fullText = editor.value;
-            const originalStart = editor.selectionStart;
-            const originalEnd = editor.selectionEnd;
-            const selectedText = editor.value.substring(originalStart, originalEnd);
-
-            if (modeSelect === 'local' && originalStart === originalEnd) {
-                alert("【局部修改】模式下，请先在编辑器正文中选中需要修改的文字范围！");
-                return;
-            }
-
-
-            let userContent = `<edit_mode>${modeStr}</edit_mode>\n`;
-            userContent += `<task_instruction>\n${promptInput}\n</task_instruction>\n\n`;
-
-            if (refData.enabled && refData.content.trim() !== "") {
-                userContent += `<reference_material>\n${refData.content}\n</reference_material>\n\n`;
-            }
-
-            let baseTextPre = "";
-            let baseTextPost = "";
-
-            // 核心：基于编辑模式分割文本保留区
-            if (modeSelect === 'local') {
-                baseTextPre = editor.value.substring(0, originalStart);
-                baseTextPost = editor.value.substring(originalEnd);
-                userContent += `<before_selection>\n${baseTextPre}\n</before_selection>\n\n`;
-                userContent += `<target_text_to_process>\n${selectedText}\n</target_text_to_process>\n\n`;
-                userContent += `<after_selection>\n${baseTextPost}\n</after_selection>\n`;
-
-            } else if (modeSelect === 'append') {
-                // 如果是追加内容，当前正文做为基底
-                baseTextPre = fullText + (fullText.endsWith('\n') ? "" : "\n\n");
-                baseTextPost = "";
-                userContent += `<full_context>\n${fullText}\n</full_context>\n`;
-            } else {
-                // 全文修改模式
-                baseTextPre = "";
-                baseTextPost = "";
-                userContent += `<full_context>\n${fullText}\n</full_context>\n`;
-            }
-
-            // 动态注入启用的写作技能
-            let finalSysPrompt = sysPromptText;
-            let techStr = '';
-            techniques.filter(t => t.enabled).forEach(t => {
-                techStr += `- **技能名称**：${t.title}\n  - **使用场景**：${t.condition}\n  - **执行要求**：${t.description}\n`;
-            });
-            if (techStr) {
-                finalSysPrompt += `\n\n## 启用的专属写作技能:\n当前用户为你启用了以下专属写作技能。这是你执行任务的最高准则！请仔细阅读其【使用场景】和【执行要求】，写作技能在【使用场景】与写作要求、文体类型、用户指令匹配时才生效。写作技能生效时，在生成内容时严格贯彻其写作风格、语气和结构排版规范，如果技能要求与常规行为冲突，以技能要求为准：\n${techStr}`;
-            }
-
-
-            let messagesPayload = [
-                { role: "system", content: finalSysPrompt }
-            ];
-
-            // 注入最近 10 次的交互历史，每次截断前200字
-            let recentHistory = interactionHistory.slice(-10);
-            for (let msg of recentHistory) {
-                let truncUser = msg.user.length > 200 ? msg.user.substring(0, 200) + '...[已截断]' : msg.user;
-                let truncAssistant = msg.assistant.length > 200 ? msg.assistant.substring(0, 200) + '...[已截断]' : msg.assistant;
-                messagesPayload.push({ role: "user", content: "【历史操作回忆】: " + truncUser });
-                messagesPayload.push({ role: "assistant", content: "【历史回应回忆】: " + truncAssistant });
-            }
-
-            messagesPayload.push({ role: "user", content: userContent });
-
-            const payload = {
-                model: appConfig.model,
-                temperature: appConfig.temp,
-                stream: true,
-                stream_options:{include_usage: true},
-                enable_thinking: true,
-                extra_body: {enable_thinking: true},
-                messages: messagesPayload
-            };
+            // 构建请求上下文
+            const ctx = buildLLMContext(promptInput);
+            if (!ctx) return; // 校验失败（如未选中文本）则终止
 
             abortController = new AbortController();
-
-            lastLLMReq = JSON.stringify(payload, null, 2);
-            lastLLMRes = "";
+            lastLLMReq = JSON.stringify(ctx.payload, null, 2); 
+            lastLLMRes = ""; 
             lastLLMErr = "";
-            const estimatedInputTokens = Math.floor(lastLLMReq.length * 0.8);
-
-            const btn = document.getElementById('submit-btn');
-            const btnText = document.getElementById('submit-text');
-            const loader = document.getElementById('submit-loader');
-
-            btn.disabled = true;
-            btn.style.display = 'none';
-            document.getElementById('stop-btn').style.display = 'flex';
-            loader.style.display = 'block';
-            statusIcon.className = 'status-icon loading';
-            statusIcon.title = "请求发送中...";
-
-            editor.readOnly = true;
-
             const startTime = Date.now();
+
+            setLLMUIState(true); // 切换为加载中 UI
 
             try {
                 const response = await fetch(appConfig.url, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${appConfig.key}`,
-                        'Accept': 'text/event-stream'
-                    },
-                    body: JSON.stringify(payload),
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${appConfig.key}`, 'Accept': 'text/event-stream' },
+                    body: lastLLMReq, 
                     signal: abortController.signal
                 });
 
-                if (!response.ok) {
-                    const errText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errText}`);
+                if (!response.ok) { 
+                    const errText = await response.text(); 
+                    throw new Error(`HTTP ${response.status}: ${errText}`); 
                 }
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder('utf-8');
-
-                let buffer = '';
-                let rawOutputText = '';
-                let rawReasoningText = '';
-                let outputTokens = 0;
-                let actualInputTokens = estimatedInputTokens;
+                // 处理流式输出
+                const streamResult = await processSSEStream(response.body.getReader(), ctx);
                 
-                // === 新增：暂存跨块切分的 JSON 字符串 ===
-                let pendingData = ''; 
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    buffer += decoder.decode(value, { stream: true });
-                    
-                    let match;
-                    // 使用正则匹配 \n\n 或 \r\n\r\n 作为安全的事件边界
-                    while ((match = /\r?\n\r?\n/.exec(buffer)) !== null) {
-                        let boundary = match.index;
-                        let chunk = buffer.slice(0, boundary).trim();
-                        buffer = buffer.slice(boundary + match[0].length);
-
-                        if (!chunk) continue;
-
-                        // 剥离块中所有的 "data:" 前缀
-                        let chunkDataStr = chunk.replace(/(^|\n)data:\s*/gi, '').trim();
-
-                        if (chunkDataStr === '[DONE]') break;
-
-                        if (chunkDataStr) {
-                            pendingData += chunkDataStr;
-                            try {
-                                const data = JSON.parse(pendingData);
-                                pendingData = ''; 
-
-                                if (data.usage) {
-                                    if (data.usage.completion_tokens) outputTokens = data.usage.completion_tokens;
-                                    if (data.usage.prompt_tokens) actualInputTokens = data.usage.prompt_tokens;
-                                }
-
-                                if (data.choices && data.choices.length > 0) {
-                                    const delta = data.choices[0].delta;
-                                    if (delta) {
-                                        if (delta.reasoning_content) {
-                                            rawReasoningText += delta.reasoning_content;
-                                        }
-                                        if (delta.content) {
-                                            rawOutputText += delta.content;
-                                        }
-                                    }
-                                }
-                            } catch (e) {
-                                // 单次解析失败：等待下一个块
-                            }
-                        }
-                    }
-
-                    // 状态机消除 <think> 并实时渲染
-                    let cleanText = rawOutputText.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '');
-                    editor.value = baseTextPre + cleanText + baseTextPost;
-                    editor.scrollTop = editor.scrollHeight; 
-                }
-
-                // 最终收尾渲染
-                let finalCleanText = rawOutputText.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '').trimStart();
-                editor.value = baseTextPre + finalCleanText + baseTextPost;
-
-                editor.focus();
-                const endCursor = baseTextPre.length + finalCleanText.length;
-                editor.setSelectionRange(endCursor, endCursor);
-
-                saveState(editor.value);
+                // 收尾更新
+                saveState(editor.value); 
                 updateUI();
 
                 // 记录交互历史
-                interactionHistory.push({
-                    user: promptInput,
-                    assistant: finalCleanText
-                });
+                interactionHistory.push({ user: promptInput, assistant: streamResult.finalText });
                 if (interactionHistory.length > 10) interactionHistory.shift();
                 dbSet('writer_interaction_history', interactionHistory);
 
-                outputTokens = outputTokens || Math.floor((rawOutputText.length + rawReasoningText.length) * 0.8);
+                // 更新统计看板
                 const duration = Date.now() - startTime;
-                
-                let displayReasoning = rawReasoningText ? `\n\n【独立思考过程 (reasoning_content)】\n${rawReasoningText}` : '';
-                lastLLMRes = `【SSE 流式传输成功】\n最终提取文本字数：${finalCleanText.length}\n最终生成Tokens：${outputTokens}${displayReasoning}\n\n【底层原始完整输出 (content)】\n${rawOutputText}`;
+                let displayReasoning = streamResult.rawReasoningText ? `\n\n【独立思考过程 (reasoning_content)】\n${streamResult.rawReasoningText}` : '';
+                lastLLMRes = `【SSE 流式传输成功】\n最终提取文本字数：${streamResult.finalText.length}\n最终生成Tokens：${streamResult.outputTokens}${displayReasoning}\n\n【底层原始完整输出 (content)】\n${streamResult.rawOutputText}`;
 
-                statusIcon.className = 'status-icon success';
+                statusIcon.className = 'status-icon success'; 
                 statusIcon.title = "请求成功，点击查看详情";
-                document.getElementById('llm-stats').innerHTML = `
-                    <span>耗时: ${duration}ms</span> | 
-                    <span>上下文: ${actualInputTokens} Tokens</span> | 
-                    <span>输出: ${outputTokens} Tokens</span>
-                `;
+                document.getElementById('llm-stats').innerHTML = `<span>耗时: ${duration}ms</span> | <span>上下文: ${streamResult.actualInputTokens} Tokens</span> | <span>输出: ${streamResult.outputTokens} Tokens</span>`;
 
             } catch (error) {
                 const duration = Date.now() - startTime;
                 lastLLMErr = error.toString();
-
-                statusIcon.className = 'status-icon error';
+                statusIcon.className = 'status-icon error'; 
                 statusIcon.title = "请求失败，点击查看详情";
-                document.getElementById('llm-stats').innerHTML = `
-                    <span style="color:red;">耗时: ${duration}ms (失败)</span> | 
-                    <span>上下文: ~${estimatedInputTokens} Tokens</span> | 
-                    <span>输出: 0 Tokens</span>
-                `;
+                document.getElementById('llm-stats').innerHTML = `<span style="color:red;">耗时: ${duration}ms (失败)</span> | <span>上下文: ~${ctx.estimatedTokens} Tokens</span> | <span>输出: 0 Tokens</span>`;
             } finally {
-                btn.disabled = false;
-                btn.style.display = 'flex';
-                document.getElementById('stop-btn').style.display = 'none';
-                btnText.style.display = 'block';
-                loader.style.display = 'none';
-                editor.readOnly = false;
+                setLLMUIState(false); // 恢复 UI 状态
                 abortController = null;
-
-                if (isPreviewMode) renderMarkdownView();
-                document.getElementById('selection-hint').innerHTML = ''; // 清空选中提示
             }
+        }
+
+        // 2. 数据构建：负责处理文本截取、System Prompt 组装
+        function buildLLMContext(promptInput) {
+            const modeSelect = document.getElementById('llm-mode-select').value;
+            const fullText = editor.value;
+            const originalStart = editor.selectionStart;
+            const originalEnd = editor.selectionEnd;
+            const selectedText = fullText.substring(originalStart, originalEnd);
+
+            if (modeSelect === 'local' && originalStart === originalEnd) {
+                alert("【局部修改】模式下，请先在编辑器正文中选中需要修改的文字范围！"); 
+                return null;
+            }
+
+            const modeStrMap = { 'full': '全文修改', 'local': '局部修改', 'append': '末尾追加' };
+            const modeStr = modeStrMap[modeSelect] || '全文修改';
+
+            let userContent = `<edit_mode>${modeStr}</edit_mode>\n<task_instruction>\n${promptInput}\n</task_instruction>\n\n`;
+            if (refData.enabled && refData.content.trim() !== "") {
+                userContent += `<reference_material>\n${refData.content}\n</reference_material>\n\n`;
+            }
+
+            let baseTextPre = "", baseTextPost = "";
+            if (modeSelect === 'local') {
+                baseTextPre = fullText.substring(0, originalStart);
+                baseTextPost = fullText.substring(originalEnd);
+                userContent += `<before_selection>\n${baseTextPre}\n</before_selection>\n\n<target_text_to_process>\n${selectedText}\n</target_text_to_process>\n\n<after_selection>\n${baseTextPost}\n</after_selection>\n`;
+            } else if (modeSelect === 'append') {
+                baseTextPre = fullText + (fullText.endsWith('\n') ? "" : "\n\n");
+                userContent += `<full_context>\n${fullText}\n</full_context>\n`;
+            } else {
+                userContent += `<full_context>\n${fullText}\n</full_context>\n`;
+            }
+
+            let finalSysPrompt = sysPromptText;
+            let techStr = techniques.filter(t => t.enabled).map(t => `- **技能名称**：${t.title}\n  - **使用场景**：${t.condition}\n  - **执行要求**：${t.description}\n`).join('');
+            if (techStr) {
+                finalSysPrompt += `\n\n## 启用的专属写作技能:\n当前用户为你启用了以下专属写作技能。这是你执行任务的最高准则！请仔细阅读其【使用场景】和【执行要求】，写作技能在【使用场景】与写作要求、文体类型、用户指令匹配时才生效。写作技能生效时，在生成内容时严格贯彻其写作风格、语气和结构排版规范，如果技能要求与常规行为冲突，以技能要求为准：\n${techStr}`;
+            }
+
+            let messagesPayload = [{ role: "system", content: finalSysPrompt }];
+            for (let msg of interactionHistory.slice(-10)) {
+                messagesPayload.push({ role: "user", content: msg.user.length > 200 ? msg.user.substring(0, 200) + '...[已截断]' : msg.user });
+                messagesPayload.push({ role: "assistant", content: msg.assistant.length > 200 ? msg.assistant.substring(0, 200) + '...[已截断]' : msg.assistant });
+            }
+            messagesPayload.push({ role: "user", content: userContent });
+
+            const payload = {
+                model: appConfig.model, temperature: appConfig.temp, stream: true,
+                stream_options: { include_usage: true }, enable_thinking: true, extra_body: { enable_thinking: true },
+                messages: messagesPayload
+            };
+
+            return { 
+                payload, baseTextPre, baseTextPost, 
+                estimatedTokens: Math.floor(JSON.stringify(payload).length * 0.8)
+            };
+        }
+
+        // 3. UI 状态管理器：控制按钮、加载条与禁用逻辑
+        function setLLMUIState(isProcessing) {
+            const btn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('submit-text');
+            const loader = document.getElementById('submit-loader');
+            const stopBtn = document.getElementById('stop-btn');
+
+            btn.disabled = isProcessing;
+            btn.style.display = isProcessing ? 'none' : 'flex';
+            stopBtn.style.display = isProcessing ? 'flex' : 'none';
+            btnText.style.display = isProcessing ? 'none' : 'block';
+            loader.style.display = isProcessing ? 'block' : 'none';
+            
+            editor.readOnly = isProcessing;
+            if (isProcessing) {
+                statusIcon.className = 'status-icon loading'; 
+                statusIcon.title = "请求发送中...";
+            } else {
+                if (isPreviewMode) renderMarkdownView();
+                document.getElementById('selection-hint').innerHTML = ''; 
+            }
+        }
+
+        // 4. 数据流解析器：处理 SSE 流与节流渲染
+        async function processSSEStream(reader, ctx) {
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '', pendingData = '';
+            let lastRenderTime = 0;
+            
+            // 声明状态机对象
+            const state = {
+                rawOutputText: '', rawReasoningText: '', cleanOutputText: '',
+                lastProcessedIndex: 0, isThinking: false, hasFinishedThinking: false,
+                outputTokens: 0, actualInputTokens: ctx.estimatedTokens
+            };
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                let match;
+                let isStreamDone = false;
+                while ((match = /\r?\n\r?\n/.exec(buffer)) !== null) {
+                    let chunk = buffer.slice(0, match.index).trim();
+                    buffer = buffer.slice(match.index + match[0].length);
+                    if (!chunk) continue;
+
+                    let chunkDataStr = chunk.replace(/(^|\n)data:\s*/gi, '').trim();
+                    if (chunkDataStr === '[DONE]') { isStreamDone = true; break; }
+
+                    if (chunkDataStr) {
+                        pendingData += chunkDataStr;
+                        try {
+                            const data = JSON.parse(pendingData);
+                            pendingData = ''; 
+                            
+                            // 更新 Token 统计
+                            if (data.usage) {
+                                if (data.usage.completion_tokens) state.outputTokens = data.usage.completion_tokens;
+                                if (data.usage.prompt_tokens) state.actualInputTokens = data.usage.prompt_tokens;
+                            }
+                            // 核心流数据注入状态机
+                            if (data.choices && data.choices[0].delta) {
+                                const delta = data.choices[0].delta;
+                                if (delta.reasoning_content) state.rawReasoningText += delta.reasoning_content;
+                                if (delta.content) updateThinkStateMachine(state, delta.content);
+                            }
+                        } catch (e) { /* JSON不完整，等待下一个块拼接 */ }
+                    }
+                }
+                if (isStreamDone) break;
+
+                // 节流渲染 UI (30fps)
+                const now = Date.now();
+                if (now - lastRenderTime >= 33) {
+                    editor.value = ctx.baseTextPre + state.cleanOutputText + ctx.baseTextPost;
+                    editor.scrollTop = editor.scrollHeight; 
+                    lastRenderTime = now;
+                }
+            }
+
+            // 【修复漏洞1】处理流意外断开时，残留在 buffer 中的最后一条数据
+            if (buffer.trim()) {
+                let chunkDataStr = buffer.replace(/(^|\n)data:\s*/gi, '').trim();
+                if (chunkDataStr && chunkDataStr !== '[DONE]') {
+                    try {
+                        const data = JSON.parse(chunkDataStr);
+                        if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
+                            updateThinkStateMachine(state, data.choices[0].delta.content);
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            // 【修复漏洞2】释放状态机为了检测 <think>/</think> 标签而强制扣留的最后几个字符
+            // isThinking=true 表示 <think> 未闭合，此时扣留内容属于思考过程，应静默丢弃
+            if (state.lastProcessedIndex < state.rawOutputText.length) {
+                if (!state.isThinking) {
+                    state.cleanOutputText += state.rawOutputText.substring(state.lastProcessedIndex);
+                }
+                state.lastProcessedIndex = state.rawOutputText.length;
+            }
+
+            // 最终无损渲染
+            const finalCleanText = state.cleanOutputText.trimStart();
+            editor.value = ctx.baseTextPre + finalCleanText + ctx.baseTextPost;
+            editor.focus();
+            const endCursor = ctx.baseTextPre.length + finalCleanText.length;
+            editor.setSelectionRange(endCursor, endCursor);
+
+            state.outputTokens = state.outputTokens || Math.floor((state.rawOutputText.length + state.rawReasoningText.length) * 0.8);
+            return {
+                finalText: finalCleanText,
+                rawOutputText: state.rawOutputText,
+                rawReasoningText: state.rawReasoningText,
+                outputTokens: state.outputTokens,
+                actualInputTokens: state.actualInputTokens
+            };
+        }
+
+        // 5. 状态机机制：专职拦截 `<think>` 标签内容
+        function updateThinkStateMachine(state, newContent) {
+            state.rawOutputText += newContent;
+            let searchStart = state.lastProcessedIndex;
+
+            while (searchStart < state.rawOutputText.length) {
+                if (!state.hasFinishedThinking) {
+                    if (!state.isThinking) {
+                        let thinkStart = state.rawOutputText.indexOf('<think>', searchStart);
+                        if (thinkStart !== -1) {
+                            state.cleanOutputText += state.rawOutputText.substring(searchStart, thinkStart);
+                            state.isThinking = true;
+                            searchStart = thinkStart + '<think>'.length;
+                        } else {
+                            // 安全防截断，保留7个字符看下文是否能拼成 <think>
+                            let safeEnd = Math.max(searchStart, state.rawOutputText.length - 7);
+                            if (safeEnd > searchStart) {
+                                state.cleanOutputText += state.rawOutputText.substring(searchStart, safeEnd);
+                                searchStart = safeEnd;
+                            }
+                            break;
+                        }
+                    } else {
+                        let thinkEnd = state.rawOutputText.indexOf('</think>', searchStart);
+                        if (thinkEnd !== -1) {
+                            state.isThinking = false;
+                            state.hasFinishedThinking = true;
+                            searchStart = thinkEnd + '</think>'.length;
+                        } else {
+                            // 安全防截断，保留8个字符看下文是否能拼成 </think>
+                            let safeEnd = Math.max(searchStart, state.rawOutputText.length - 8);
+                            if (safeEnd > searchStart) searchStart = safeEnd;
+                            break;
+                        }
+                    }
+                } else {
+                    state.cleanOutputText += state.rawOutputText.substring(searchStart);
+                    searchStart = state.rawOutputText.length;
+                    break;
+                }
+            }
+            state.lastProcessedIndex = searchStart;
         }
     </script>
 </body>
-
 </html>
