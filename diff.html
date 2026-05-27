@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>专业文本对比工具 (Diff Tool)</title>
+    <title>专业文本对比工具 (Diff Tool) - 增强版</title>
     <style>
         :root {
             --bg-color: #f4f6f8;
@@ -168,6 +168,23 @@
             border-color: var(--accent-color);
         }
 
+        /* 选项样式 */
+        .option-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+        }
+        .option-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--accent-color);
+        }
+
         .stats {
             font-size: 13px;
             color: var(--text-secondary);
@@ -187,7 +204,7 @@
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            overflow: hidden;
+            overflow: hidden; /* 保持圆角 */
             display: flex;
             flex-direction: column;
         }
@@ -199,14 +216,21 @@
             font-weight: 600;
             font-size: 13px;
             color: var(--text-secondary);
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
         .diff-header .diff-col {
             padding: 10px 15px;
         }
 
         .diff-body {
-            overflow: auto;
-            max-height: 70vh;
+            /* 【改进2】移除固定高度限制，改为自适应内容高度 */
+            height: auto; 
+            min-height: 200px;
+            max-height: none; 
+            overflow-x: auto; /* 仅横向滚动 */
+            overflow-y: visible; /* 纵向自然撑开 */
             position: relative;
         }
 
@@ -238,7 +262,7 @@
             user-select: none;
             border-right: 1px solid #eaecef;
             font-size: 12px;
-            align-self: flex-start; /* 关键：确保行号与第一行文本对齐 */
+            align-self: flex-start;
         }
 
         .line-content {
@@ -321,6 +345,12 @@
             <div class="stats" id="stats"></div>
         </div>
         <div class="toolbar-right">
+            <!-- 【改进1】新增忽略空白选项 -->
+            <label class="option-group" title="忽略行首尾空格、Tab以及纯空行的差异">
+                <input type="checkbox" id="chkIgnoreWhitespace" checked="true" >
+                忽略空白差异
+            </label>
+            
             <button class="btn-secondary" id="btnFold" onclick="toggleFold()">折叠相同代码</button>
             <button class="btn-secondary" id="btnClear" onclick="clearAll()">清空</button>
         </div>
@@ -344,6 +374,9 @@
         let isFolded = false;
         let currentDiffs = [];
         let currentTitles = { t1: '旧文本', t2: '新文本' };
+        // 缓存原始行数据，用于在忽略空白模式下重新计算
+        let rawLines1 = [];
+        let rawLines2 = [];
 
         // ================= UI 交互逻辑 =================
         
@@ -398,6 +431,14 @@
             }
         }
 
+        // 【改进1】监听忽略空白选项变化
+        document.getElementById('chkIgnoreWhitespace').addEventListener('change', () => {
+            if (rawLines1.length > 0 || rawLines2.length > 0) {
+                // 如果已有数据，直接重新计算差异，无需重新读取文件
+                runDiffAlgorithm(rawLines1, rawLines2);
+            }
+        });
+
         function clearAll() {
             document.getElementById('file1').value = '';
             document.getElementById('file2').value = '';
@@ -408,6 +449,8 @@
             document.getElementById('diffBody').innerHTML = '<div class="empty-state">请在上方选择文件或粘贴文本，然后点击“开始对比”按钮。</div>';
             document.getElementById('stats').innerHTML = '';
             currentDiffs = [];
+            rawLines1 = [];
+            rawLines2 = [];
         }
 
         // ================= 核心算法与工具函数 =================
@@ -428,26 +471,44 @@
             });
         }
 
+        // 【改进1】文本标准化函数：用于比较，但不影响显示
+        function normalizeLine(line) {
+            if (!line) return "";
+            // 去除首尾空格、Tab，并将多个连续空格替换为单个空格
+            // 如果整行都是空白，则返回空字符串
+            return line.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '').replace(/\t/g, ' ').replace(/\s+/g, ' ');
+        }
+
         // 优化的 LCS 算法 (带内存保护)
-        function computeLCS(a, b) {
+        function computeLCS(a, b, ignoreWhitespace) {
             const m = a.length, n = b.length;
-            // 内存保护：如果矩阵过大，降级处理或截断
+            
+            // 准备用于比较的数据
+            // 如果忽略空白，我们使用标准化后的数据进行比对
+            // 否则直接使用原始数据
+            const compA = ignoreWhitespace ? a.map(normalizeLine) : a;
+            const compB = ignoreWhitespace ? b.map(normalizeLine) : b;
+
+            // 内存保护
             if (m * n > 15000000) {
                 console.warn("文本差异过大，降级为简单逐行对比");
-                return simpleDiff(a, b); 
+                return simpleDiff(a, b, compA, compB); 
             }
 
             const dp = Array(m + 1).fill(null).map(() => new Uint16Array(n + 1));
             for (let i = 1; i <= m; i++) {
                 for (let j = 1; j <= n; j++) {
-                    dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+                    // 使用标准化后的字符串进行比较
+                    dp[i][j] = compA[i - 1] === compB[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
                 }
             }
 
             const diffs = [];
             let i = m, j = n;
             while (i > 0 && j > 0) {
-                if (a[i - 1] === b[j - 1]) {
+                // 回溯时也使用标准化字符串判断相等
+                if (compA[i - 1] === compB[j - 1]) {
+                    // 记录原始值用于显示
                     diffs.unshift({ type: 'equal', valA: a[i - 1], valB: b[j - 1], lineA: i, lineB: j });
                     i--; j--;
                 } else if (dp[i - 1][j] >= dp[i][j - 1]) {
@@ -464,13 +525,13 @@
             return diffs;
         }
 
-        // 降级用的简单对比算法 (O(N))
-        function simpleDiff(a, b) {
+        // 降级用的简单对比算法
+        function simpleDiff(a, b, compA, compB) {
             const diffs = [];
             const maxLen = Math.max(a.length, b.length);
             for (let i = 0; i < maxLen; i++) {
                 if (i < a.length && i < b.length) {
-                    if (a[i] === b[i]) diffs.push({ type: 'equal', valA: a[i], valB: b[i], lineA: i+1, lineB: i+1 });
+                    if (compA[i] === compB[i]) diffs.push({ type: 'equal', valA: a[i], valB: b[i], lineA: i+1, lineB: i+1 });
                     else {
                         diffs.push({ type: 'delete', valA: a[i], valB: null, lineA: i+1, lineB: null });
                         diffs.push({ type: 'insert', valA: null, valB: b[i], lineA: null, lineB: i+1 });
@@ -484,8 +545,9 @@
             return diffs;
         }
 
-        // 行内字符级 Diff (用于高亮具体修改的字符)
+        // 行内字符级 Diff
         function getInlineDiff(str1, str2) {
+            if (!str1 || !str2) return { html1: escapeHtml(str1||''), html2: escapeHtml(str2||'') };
             if (str1.length * str2.length > 500000) return { html1: escapeHtml(str1), html2: escapeHtml(str2) };
             
             const m = str1.length, n = str2.length;
@@ -530,7 +592,6 @@
             const flushEqualBuffer = () => {
                 if (equalBuffer.length === 0) return;
                 if (isFolded && equalBuffer.length > 6) {
-                    // 保留头尾各3行
                     htmlParts.push(...equalBuffer.slice(0, 3));
                     htmlParts.push(`<div class="folded-row" onclick="toggleFold()">⊞ 展开未修改的 ${equalBuffer.length - 6} 行...</div>`);
                     htmlParts.push(...equalBuffer.slice(-3));
@@ -553,7 +614,6 @@
                 } else {
                     flushEqualBuffer();
                     
-                    // 检查是否是连续的 delete 和 insert (即修改操作)
                     let isModify = false;
                     let nextD = diffs[k + 1];
                     if (d.type === 'delete' && nextD && nextD.type === 'insert') {
@@ -561,13 +621,15 @@
                     }
 
                     if (isModify) {
+                        // 只有在非忽略空白模式下，或者虽然忽略了空白但行内容确实不同时，才做行内高亮
+                        // 这里简化处理：始终尝试行内高亮，因为即使忽略空白匹配上了，显示的还是原文
                         const inline = getInlineDiff(d.valA, nextD.valB);
                         htmlParts.push(`
                             <div class="diff-row">
                                 <div class="diff-col line-delete"><span class="line-num">${d.lineA}</span><span class="line-content">${inline.html1}</span></div>
                                 <div class="diff-col line-insert"><span class="line-num">${nextD.lineB}</span><span class="line-content">${inline.html2}</span></div>
                             </div>`);
-                        k++; // 跳过下一个 insert
+                        k++; 
                         delCount++; insCount++;
                     } else if (d.type === 'delete') {
                         const val = escapeHtml(d.valA) || '&nbsp;';
@@ -594,6 +656,13 @@
             document.getElementById('stats').innerHTML = `差异统计: <span class="ins">+${insCount} 行新增</span>, <span class="del">-${delCount} 行删除</span>`;
         }
 
+        // 抽取差异计算逻辑，供复选框切换时复用
+        function runDiffAlgorithm(lines1, lines2) {
+            const ignoreWS = document.getElementById('chkIgnoreWhitespace').checked;
+            currentDiffs = computeLCS(lines1, lines2, ignoreWS);
+            renderDiff(currentDiffs, currentTitles.t1, currentTitles.t2);
+        }
+
         // ================= 主流程 =================
 
         async function startCompare() {
@@ -612,7 +681,6 @@
             btn.disabled = true;
             loading.style.display = 'inline';
             
-            // 使用 setTimeout 让 UI 有机会更新 loading 状态
             setTimeout(async () => {
                 try {
                     const rawText1 = file1 ? await readFile(file1) : text1Str;
@@ -621,16 +689,15 @@
                     currentTitles.t1 = file1 ? `📄 ${file1.name}` : (text1Str ? "📝 粘贴的旧文本" : "⬜ 空白");
                     currentTitles.t2 = file2 ? `📄 ${file2.name}` : (text2Str ? "📝 粘贴的新文本" : "⬜ 空白");
 
-                    // 统一换行符并分割，过滤掉末尾多余的空行
-                    const lines1 = rawText1.replace(/\r\n/g, '\n').split('\n');
-                    const lines2 = rawText2.replace(/\r\n/g, '\n').split('\n');
+                    // 统一换行符并分割
+                    rawLines1 = rawText1.replace(/\r\n/g, '\n').split('\n');
+                    rawLines2 = rawText2.replace(/\r\n/g, '\n').split('\n');
                     
-                    // 如果最后一行是空字符串（通常是因为文件末尾有换行符），则移除
-                    if (lines1[lines1.length - 1] === '') lines1.pop();
-                    if (lines2[lines2.length - 1] === '') lines2.pop();
+                    // 移除末尾多余空行
+                    if (rawLines1[rawLines1.length - 1] === '') rawLines1.pop();
+                    if (rawLines2[rawLines2.length - 1] === '') rawLines2.pop();
 
-                    currentDiffs = computeLCS(lines1, lines2);
-                    renderDiff(currentDiffs, currentTitles.t1, currentTitles.t2);
+                    runDiffAlgorithm(rawLines1, rawLines2);
                     
                 } catch (err) {
                     alert("处理出错: " + err.message);
