@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能写作助手 2.5</title>
+    <title>智能写作助手 2.6</title>
 
     <script src="js/marked.min.js">
     </script>
@@ -327,7 +327,8 @@
                 </div>
                 <button onclick="openModal('history-modal')">🕒 历史版本</button>
                 <button onclick="undo()">↶ 撤回</button>
-                <button onclick="clearContent()">🗑️ 清空</button>
+                <button onclick="clearContent()">📄 开始新文章</button>
+                <button onclick="clearAllData()">🧹 清理</button>
                 <button onclick="toggleTheme()" id="theme-btn" title="切换深色/浅色模式">🌓 暗色</button>
             </div>
         </div>
@@ -344,7 +345,7 @@
         <div class="ai-tools">
             <button class="ai-btn btn-green" onclick="setPromptMode('ai_gen')">✍️ 续写</button>
             <button class="ai-btn btn-green" onclick="setPromptMode('rewrite')">📝 扩写</button>
-            <button class="ai-btn btn-green" onclick="setPromptMode('summarize')">📄 浓缩</button>
+            <button class="ai-btn btn-green" onclick="setPromptMode('summarize')">⚗️ 浓缩</button>
             <button class="ai-btn btn-green" onclick="setPromptMode('polish')">✨ 润色</button>
             <div style="width: 1px; height: 24px; background-color: var(--border-color); margin: 0 5px;"></div>
             <button class="ai-btn btn-purple" onclick="openModal('replace-modal')">🔍 批量替换</button>
@@ -609,36 +610,84 @@
         mermaid.initialize({ startOnLoad: false, theme: 'default' });
     }
 
-    // ===================== 【提示信息与占位符设置】 =====================
-    const emptyPromptMarkdown = `# 👋 欢迎使用智能写作助手
+    // ===================== 【使用说明】 =====================
+    var usingGuide = `# 👋 欢迎使用智能写作助手 2.6
 
-不用担心不会用，这里就像是一个带魔法的"记事本"！您可以直接在下面打字，或者把其他地方的文章粘贴进来。
+这是一个运行在浏览器中的**本地 AI 写作伙伴**，您的所有数据和配置都安全地保存在自己的设备上，服务器无法访问您的任何内容。
 
-## 💡 怎么使用这个魔法？
+---
 
-### 1. 怎么让 AI 帮我改文章？
-* 🎯 **局部修改**：用鼠标**选中**文章里的一句话或一段话，旁边马上会弹出一个悬浮小菜单。您可以点击「✨ 润色」让句子更通顺，点击「📝 扩写」让内容更丰富。
-* 📝 **全文修改**：如果您想让 AI 帮您修改整篇文章，只要**什么都不选**，在右下角的输入框里告诉 AI 您的想法（比如："帮我把整篇文章改得更生动一些"），然后点击提交即可！
-* ➕ **续写文章**：点击右下角输入框上面的下拉菜单，选择「末尾追加」，AI 就会顺着您写过的内容接着往下写。
+## 🚀 快速上手（三步开启 AI 写作）
 
-### 2. 什么是渲染模式？
-* 当您写完文章后，可以点击顶部的 **「切换渲染模式」**，此时您的文章会变成排版精美的最终效果。
+### 第一步：配置您的大模型
+> AI 功能需要连接您的大模型服务，首次使用请先完成配置。
 
-### 3. 让 AI 更聪明的小技巧
-* 📚 **上传参考资料**：点击右侧的「参考资料」，您可以把手头上的内部文件（比如公司介绍、项目要求）放进去。这样 AI 在写文章时，就会参考您的真实资料，不会胡编乱造！
-* 🎯 **开启写作技能**：点击「写作技能」，您可以给 AI 设定一个专门的写作风格。比如让它使用"讲故事的口吻"或者"严谨的工作报告格式"。
+1. 点击底部工具栏的 **「⚙️ LLM配置」** 按钮
+2. 填写三项必填信息：
+   - **接口地址**：您的模型服务商提供的 API 端点（需包含 /v1/chat/completions）
+   - **API Key**：从服务商获取的密钥
+   - **模型名称**：如 \`deepseek-chat\`、\`qwen3.5-27b\` 等
+3. 点击「保存配置」，以后无需重复填写
 
-### 4. 初次使用必看：配置大模型
-在开始体验 AI 功能前，您需要先告诉系统使用哪个大模型：
-1. 点击右侧工具栏底部的 **[⚙️ LLM配置]** 按钮。
-2. 填入相关参数，例如：
-* **接口地址 (URL)**：https://api.deepseek.com/chat/completions 或者 http://127.0.0.1:8002/v1/chat/completions
-* **API Key**：您在服务商处申请的专属密钥（如 \`sk-xxxxxx...\`）
-* **模型名称**：填写对应的模型，如 \`deepseek-chat\` 或 \`qwen35-27b\`
+> 💡 **没有大模型？** 如果本地没有部署模型服务，可以访问 [DeepSeek](https://platform.deepseek.com) 等平台获取 API。
 
-### 🔒 数据安全与隐私说明
-* 本工具采用纯本地优先架构，您的**文章正文、历史版本以及您的个人配置等所有数据，均安全保存在您本机的浏览器缓存**中。
-* **服务器不留存任何用户数据**。当您点击提交让 AI 帮您修改时，数据只会在传输给您配置的大模型接口的那一瞬间被使用。您的隐私和数据主权完全在您自己手中。
+---
+
+### 第二步：输入或粘贴您的文章
+- 直接在编辑器中打字，或从 Word/WPS/网页中复制内容后粘贴
+- 编辑器支持 **Markdown** 语法，写完后可切换到「渲染模式」查看排版效果
+- 系统会自动保存您的每一次修改，您可以随时撤回（↶）到历史版本
+
+---
+
+### 第三步：让 AI 帮您修改
+> 选择适合您的编辑模式，输入指令，提交即可。
+
+| 模式 | 使用场景 | 操作方法 |
+|------|----------|----------|
+| **全文修改** | 修改整篇文章 | 不选中任何文字，直接在下方输入指令，如"帮我把文章改得更简洁专业"，点击提交 |
+| **局部修改** ✨ | 精修某个段落 | 选中要修改的文字，弹出悬浮工具栏，点击「✨ 润色」或「📝 扩写」等按钮 |
+| **末尾追加** ➕ | 续写文章 | 在下方下拉菜单选择「末尾追加」，AI 会顺着您的内容继续往下写 |
+
+> 📌 **局部修改的精髓**：先用鼠标**选中**一段文字（文字会高亮），悬浮工具栏会立刻出现，点击相应按钮即可。
+
+---
+
+## 📖 功能一览
+
+### 🎨 编辑与预览
+- **渲染模式**：点击顶部「👁️ 切换渲染模式」，将 Markdown 渲染为精美排版
+- **章节大纲**：左侧栏自动提取标题，方便快速跳转到任意章节
+- **深色模式**：点击右上角「🌓 暗色」切换护眼主题
+
+### 📚 让 AI 更懂您的上下文
+- **参考资料**：上传您的内部文档（公司介绍、项目要求、产品手册等），AI 会在写作时参考这些内容
+- **写作技能**：预设了「技术方案」「工作报告」「小说故事」「口述讲稿」四种专业风格，启用后 AI 会以对应文风回应
+
+### 🔧 实用工具
+- **批量替换**：支持普通文本和正则表达式批量替换
+- **历史版本**：每次修改自动存档，可查看任意历史版本并一键恢复
+- **导出下载**：支持下载为 Markdown (.md) 或 Word (.docx) 格式
+
+### 🔒 隐私与数据安全
+- ✅ 所有数据（文章、配置、参考资料）存储在**浏览器本地 IndexedDB** 中
+- ✅ 服务器仅在您提交 AI 请求时临时使用数据，不留任何存储
+- ✅ 清除浏览器缓存会删除所有本地数据，请注意备份重要内容
+
+---
+
+## ❓ 常见问题
+
+**Q：为什么 AI 没有反应？**
+请检查：① 是否已配置 LLM 接口；② API Key 是否有效；③ 接口地址是否正确（需包含完整路径）；④ 网络是否通畅。
+
+**Q：文章会丢失吗？**
+不会。所有内容自动保存到浏览器本地，每隔约 1 秒自动存档一次。同时在「🕒 历史版本」中可以找到所有存档。
+
+**Q：如何让 AI 的输出更符合我的需求？**
+- 在「💡 写作技能」中启用对应的专业技能
+- 在「📚 参考资料」中上传相关背景材料
+- 在指令中尽量描述清楚您的写作目标，如"用正式的商业报告语气改写"
 `;
     // ====================================================================
 
@@ -659,7 +708,7 @@
 
 ## Profile:
 - author: AI Writing Assistant System
-- version: 2.5
+- version: 2.6
 - language: 中文
 - description: 你是一个具备深厚文字功底的专业写作助手。你的核心使命是严格遵循用户的各项标签指令，高效、精准地进行文本处理。
 
@@ -715,7 +764,8 @@
         return new Promise((resolve) => {
             if (!dbInstance) return resolve();
             const tx = dbInstance.transaction('store', 'readwrite');
-            tx.objectStore('store').put(val, key);
+            const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(val))));
+            tx.objectStore('store').put(encoded, key);
             tx.oncomplete = () => resolve();
         });
     }
@@ -725,7 +775,14 @@
             if (!dbInstance) return resolve(null);
             const tx = dbInstance.transaction('store', 'readonly');
             const req = tx.objectStore('store').get(key);
-            req.onsuccess = () => resolve(req.result);
+            req.onsuccess = () => {
+                try {
+                    const decoded = req.result ? JSON.parse(decodeURIComponent(escape(atob(req.result)))) : null;
+                    resolve(decoded);
+                } catch (e) {
+                    resolve(null);
+                }
+            };
             req.onerror = () => resolve(null);
         });
     }
@@ -936,13 +993,43 @@
     }
 
     function clearContent() {
-        if (confirm('确定要清空文章正文吗？支持撤回。')) {
+        if (confirm('确定要开始写一篇新文章吗？当前文章内容将清空（但已自动保存历史版本，可随时撤回恢复）。')) {
             editor.value = '';
             saveState('');
             updateUI();
             interactionHistory = [];
             dbSet('writer_interaction_history', interactionHistory);
         }
+    }
+
+    async function clearAllData() {
+        if (!confirm('确定要清理所有浏览器缓存数据吗？\n\n这将删除：\n- 所有文章历史版本\n- LLM 接口配置\n- 所有参考资料\n- 所有写作技能设置\n\n此操作不可恢复！')) return;
+
+        if (!confirm('再次确认：所有数据将被永久删除，是否继续？')) return;
+
+        if (!dbInstance) await initDB();
+
+        return new Promise((resolve, reject) => {
+            const tx = dbInstance.transaction('store', 'readwrite');
+            const store = tx.objectStore('store');
+            let pending = 4;
+            const keys = ['writer_history', 'writer_llm_config', 'writer_ref_data_list', 'writer_techniques'];
+
+            keys.forEach(key => {
+                const req = store.delete(key);
+                req.onsuccess = () => { pending--; if (pending === 0) resolve(); };
+                req.onerror = () => { pending--; if (pending === 0) resolve(); };
+            });
+
+            tx.oncomplete = () => {
+                localStorage.clear();
+                location.reload();
+            };
+            tx.onerror = () => {
+                alert('清理数据时出错：' + tx.error);
+                reject(tx.error);
+            };
+        });
     }
 
     function renderHistoryList() {
@@ -1189,7 +1276,7 @@
 
     async function renderMarkdownView() {
         let text = editor.value;
-        // if (!text.trim()) text = emptyPromptMarkdown;
+        // if (!text.trim()) text = usingGuide;
 
         try {
             // 1. 公式保护机制：在 marked 解析前，把公式抽离成占位符，防止 _ 和 * 被错误解析成斜体/粗体
@@ -1396,10 +1483,13 @@
             document.getElementById('tech-condition').value = '';
             document.getElementById('tech-desc').value = '';
             currentTechIndex = -1;
-        } else if (modalId === 'history-modal') { renderHistoryList(); } else if (modalId === 'guide-modal') { document
-                .getElementById('guide-content').innerHTML = marked.parse(emptyPromptMarkdown); } else if (modalId ===
-            'sysprompt-modal') { document.getElementById('sys-content').value = appConfig.sysPrompt || sysPromptText ||
-                ''; } else if (modalId === 'ref-modal') {
+        } else if (modalId === 'history-modal') { 
+			renderHistoryList(); 
+		} else if (modalId === 'guide-modal') {
+			document.getElementById('guide-content').innerHTML = marked.parse(usingGuide || ''); 
+		} else if (modalId === 'sysprompt-modal') { 
+			document.getElementById('sys-content').value = appConfig.sysPrompt || sysPromptText || ''; 
+		} else if (modalId === 'ref-modal') {
             renderRefList();
             currentRefIndex = -1;
             document.getElementById('ref-edit-pane').classList.remove('editing');
