@@ -4,306 +4,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能写作助手 2.6</title>
+    <title>智能写作助手 2.7</title>
 
-    <script src="js/marked.min.js">
-    </script>
-    <link rel="stylesheet" href="css/github.min.css">
-    <script src="js/highlight.min.js">
-    </script>
+    <script src="js/marked.min.js"></script>
+
+    <!-- Fix #13: 给 highlight.js 主题 CSS 加 id，JS 动态切换浅/深色 -->
+    <link id="hljs-theme" rel="stylesheet" href="css/github.min.css">
+
+    <script src="js/highlight.min.js"></script>
     <link rel="stylesheet" href="css/katex.min.css">
-    <script src="js/katex.min.js">
-    </script>
-    <script src="js/auto-render.min.js">
-    </script>
-    <script src="js/mermaid.min.js">
-    </script>
-	<script src="js/writeskills.js">
-    </script>
+    <script src="js/katex.min.js"></script>
+    <script src="js/auto-render.min.js"></script>
+    <script src="js/mermaid.min.js"></script>
+    <script src="js/writeskills.js"></script>
 
-    <link rel="stylesheet" href="css/styles.css">
-
-    <style>
-		/* 1. 确保最外层布局容器占满视口高度，并使用 Flex 或 Grid 布局 */
-		.app-container {
-			display: flex;
-			height: 100vh;      /* 关键：限制整体高度为视口高度 */
-			overflow: hidden;   /* 防止整个页面出现滚动条 */
-		}
-
-		/* 2. 左侧章节大纲样式 */
-		.sidebar / .outline-panel {
-			width: 280px;       /* 根据实际宽度调整 */
-			flex-shrink: 0;     /* 防止被压缩 */
-			height: 100%;       /* 继承父容器高度 */
-			overflow-y: auto;   /* 关键：内容超出时仅左侧显示滚动条 */
-			border-right: 1px solid #eee;
-		}
-
-		/* 3. 右侧正文区域样式 */
-		.main-content {
-			flex: 1;             /* 占据右侧剩余空间 */
-			height: 100%;        /* 继承父容器高度 */
-			display: flex;       /* 开启 Flex 布局 */
-			flex-direction: column; /* 垂直排列 */
-			overflow: hidden;    /* 🚨 关键修改：取消这里的 overflow-y: auto，防止整体滚动 */
-			/* padding: 20px; 可以保留，或者移到内部具体的容器上以确保布局完美 */
-		}
-
-		.top-bar, 
-		.ai-tools, 
-		.prompt-container {
-			flex-shrink: 0;      /* 🚨 关键补充：防止 Flex 布局在空间不足时压缩这些固定工具栏 */
-		}
-
-		.editor-container {
-			flex: 1;             /* 🚨 关键修改：撑满中间所有的剩余高度 */
-			display: flex;       
-			flex-direction: column; 
-			overflow: hidden;    /* 限制死高度，依然不在这里滚动 */
-			position: relative;
-		}
-
-		/* 赋予具体的编辑器和渲染容器独立的滚动权 */
-		.editor-textarea, 
-		.editor-preview {
-			flex: 1;             /* 撑满 .editor-container */
-			height: 100%;        /* 强制 100% 高度 */
-			overflow-y: auto;    /* 🚨 关键修改：真正产生滚动条的地方在这里！ */
-			/* 如果之前 .main-content 的 padding: 20px 导致贴边，可以在这里加 padding */
-			line-height: 1.6 !important; /* 🚨 锁死具体数值：杜绝 div 和 textarea 默认计算差异带来的累计错位 */
-			font-family: inherit;        /* 确保两者继承的字体族群绝对一致 */
-		}
-
-        /* 针对技能列表项按钮的补充样式 */
-        .tech-item-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 2px 4px;
-            border-radius: 4px;
-            transition: background 0.2s, opacity 0.2s;
-            font-size: 14px;
-            line-height: 1;
-        }
-
-        .tech-item-btn:hover {
-            background: rgba(0, 0, 0, 0.08);
-        }
-
-        [data-theme="dark"] .tech-item-btn:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
-
-        .tech-item-title {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-weight: 500;
-        }
-
-        /* ===== 参考资料列表美化 ===== */
-        .ref-list-scroll {
-            flex: 1;
-            overflow-y: auto;
-            min-height: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .ref-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
-            background: var(--editor-bg);
-            user-select: none;
-        }
-
-        .ref-item:hover {
-            background: var(--bg-sidebar);
-            border-color: var(--border-color);
-        }
-
-        .ref-item.active {
-            background: var(--btn-blue);
-            border-color: var(--btn-primary);
-            box-shadow: 0 0 0 1px var(--btn-primary);
-        }
-
-        [data-theme="dark"] .ref-item.active {
-            background: var(--btn-blue);
-        }
-
-        .ref-item-checkbox {
-            flex-shrink: 0;
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            accent-color: var(--btn-primary);
-        }
-
-        .ref-item-body {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-
-        .ref-item-name {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-main);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .ref-item-preview {
-            font-size: 11px;
-            color: var(--text-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            line-height: 1.3;
-        }
-
-        .ref-item-delete {
-            flex-shrink: 0;
-            width: 28px;
-            height: 28px;
-            border: none;
-            background: transparent;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.2s, background 0.2s, color 0.2s;
-        }
-
-        .ref-item:hover .ref-item-delete {
-            opacity: 0.6;
-        }
-
-        .ref-item-delete:hover {
-            opacity: 1 !important;
-            background: rgba(211, 47, 47, 0.15);
-            color: #d32f2f;
-        }
-
-        .ref-batch-bar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            margin-bottom: 6px;
-            background: var(--bg-sidebar);
-            border-radius: 8px;
-            font-size: 13px;
-            flex-shrink: 0;
-        }
-
-        .ref-batch-count {
-            color: var(--text-muted);
-            font-size: 12px;
-            margin-right: auto;
-        }
-
-        .ref-batch-btn {
-            padding: 4px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 14px;
-            background: var(--editor-bg);
-            color: var(--text-main);
-            font-size: 12px;
-            cursor: pointer;
-            transition: background 0.2s, border-color 0.2s;
-            white-space: nowrap;
-        }
-
-        .ref-batch-btn:hover {
-            background: var(--btn-primary);
-            color: #fff;
-            border-color: var(--btn-primary);
-        }
-
-        .ref-list-footer {
-            display: flex;
-            gap: 8px;
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid var(--border-color);
-            flex-shrink: 0;
-        }
-
-        .ref-action-btn {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            padding: 8px 0;
-            border: 1px dashed var(--border-color);
-            border-radius: 8px;
-            background: transparent;
-            color: var(--text-muted);
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-
-        .ref-action-btn:hover {
-            border-color: var(--btn-primary);
-            color: var(--btn-primary);
-            background: rgba(140, 166, 193, 0.08);
-        }
-
-        #ref-edit-pane {
-            opacity: 0.6;
-            transition: opacity 0.2s;
-        }
-
-        #ref-edit-pane.editing {
-            opacity: 1;
-        }
-
-        /* 空状态 */
-        .ref-empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 40px 20px;
-            color: var(--text-muted);
-            text-align: center;
-            gap: 12px;
-            flex: 1;
-        }
-
-        .ref-empty-icon {
-            font-size: 40px;
-            opacity: 0.4;
-        }
-
-        .ref-empty-text {
-            font-size: 13px;
-            line-height: 1.6;
-        }
-    </style>
+    <link rel="stylesheet" href="css/editor.css">
 </head>
 
 <body>
+
+    <!-- 全局持久化测量 DOM -->
+    <div id="scroll-measure-dummy" class="scroll-measure-dummy"></div>
 
     <div class="sidebar" id="app-sidebar">
         <div class="sidebar-header">章节大纲</div>
@@ -318,7 +39,7 @@
             </div>
             <div class="tools-basic">
                 <button id="toggle-mode-btn" onclick="toggleMode()" title="编辑模式可以进行人工编辑和利用AI进行局部修改，渲染模式不可人工编辑和AI局部修改，但是可以全文修改">👁️ 切换渲染模式</button>
-                <div class="dropdown" style="display: inline-block; position: relative;">
+                <div class="dropdown dropdown-wrapper">
                     <button class="dropbtn" onclick="toggleDropdown()">⬇️ 下载 ▼</button>
                     <div class="dropdown-content" id="downloadDropdown">
                         <a href="#" onclick="downloadMarkdown(); return false;">下载为 Markdown (.md)</a>
@@ -347,263 +68,286 @@
             <button class="ai-btn btn-green" onclick="setPromptMode('rewrite')">📝 扩写</button>
             <button class="ai-btn btn-green" onclick="setPromptMode('summarize')">⚗️ 浓缩</button>
             <button class="ai-btn btn-green" onclick="setPromptMode('polish')">✨ 润色</button>
-            <div style="width: 1px; height: 24px; background-color: var(--border-color); margin: 0 5px;"></div>
+            <div class="tool-separator"></div>
             <button class="ai-btn btn-purple" onclick="openModal('replace-modal')">🔍 批量替换</button>
             <button class="ai-btn btn-purple" onclick="openModal('ref-modal')">📚 参考资料</button>
             <button class="ai-btn btn-purple" onclick="openModal('tech-modal')">💡 技能</button>
-            <button class="ai-btn btn-purple" onclick="openModal('sysprompt-modal')" style="display: none;">🤖 System
-                Prompt</button>
-            <div style="width: 1px; height: 24px; background-color: var(--border-color); margin: 0 5px;"></div>
+            <button class="ai-btn btn-purple hidden-by-default" onclick="openModal('sysprompt-modal')">🤖 System Prompt</button>
+            <div class="tool-separator"></div>
             <button class="ai-btn btn-orange" onclick="openModal('config-modal')">⚙️ LLM配置</button>
             <button class="ai-btn btn-orange" onclick="openModal('guide-modal')">📖 帮助</button>
-
         </div>
 
         <div class="prompt-container">
-            <div class="prompt-title" style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 14px; color: var(--text-main);">AI编辑模式:</span>
-                <select id="llm-mode-select" class="btn-modal"
-                style="padding: 4px 8px; font-weight: bold; cursor:pointer;" onchange="updateSelectionHint()">
-                <option value="full">全文修改</option>
-                <option value="local">局部修改</option>
-                <option value="append">末尾追加</option>
-            </select>
-            <span id="selection-hint"></span>
+            <div class="prompt-title prompt-title-row">
+                <span class="prompt-title-label">AI编辑模式:</span>
+                <select id="llm-mode-select" class="btn-modal mode-select-custom" onchange="updateSelectionHint()">
+                    <option value="full">全文修改</option>
+                    <option value="local">局部修改</option>
+                    <option value="append">末尾追加</option>
+                </select>
+                <span id="selection-hint"></span>
+            </div>
+            <textarea id="llm-prompt" class="prompt-textarea" placeholder="请输入您的具体编辑或修改指令..."></textarea>
+            <div class="prompt-actions">
+                <div class="llm-stats-container">
+                    <div id="llm-status-icon" class="status-icon idle" onclick="showLLMDetails()" title="未调用"></div>
+                    <div class="llm-stats" id="llm-stats">
+                        <span>耗时: 0ms</span> |
+                        <span>输入: 0 Tokens</span> |
+                        <span>输出: 0 Tokens</span>
+                    </div>
+                </div>
+                <button class="submit-btn submit-btn-stop hidden-by-default" id="stop-btn" onclick="stopLLM()">
+                    <span>停 止</span>
+                </button>
+                <button class="submit-btn" id="submit-btn" onclick="submitToLLM()">
+                    <span id="submit-text">提 交</span>
+                    <div class="loader" id="submit-loader"></div>
+                </button>
+            </div>
         </div>
-        <textarea id="llm-prompt" class="prompt-textarea" placeholder="请输入您的具体编辑或修改指令..."></textarea>
-        <div class="prompt-actions">
-            <div class="llm-stats-container">
-                <div id="llm-status-icon" class="status-icon idle" onclick="showLLMDetails()" title="未调用"></div>
-                <div class="llm-stats" id="llm-stats">
-                    <span>耗时: 0ms</span> |
-                    <span>输入: 0 Tokens</span> |
-                    <span>输出: 0 Tokens</span>
+    </div>
+
+    <div id="floating-toolbar" class="floating-toolbar hidden-by-default">
+        <button onclick="floatingAction('polish')">✨ 润色</button>
+        <button onclick="floatingAction('rewrite')">📝 扩写</button>
+        <button onclick="floatingAction('summarize')">📄 浓缩</button>
+    </div>
+
+    <div id="modal-overlay" class="modal-overlay hidden-by-default">
+
+        <div id="custom-alert-modal" class="modal modal-sm hidden-by-default">
+            <div class="modal-header">
+                <span id="custom-alert-title">提示</span>
+                <button class="modal-close-btn" onclick="closeCustomAlert()" title="关闭">&times;</button>
+            </div>
+            <div class="custom-modal-message" id="custom-alert-message"></div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-confirm" onclick="closeCustomAlert()">确 定</button>
+            </div>
+        </div>
+
+        <div id="custom-confirm-modal" class="modal modal-md hidden-by-default">
+            <div class="modal-header">
+                <span id="custom-confirm-title">确认</span>
+                <button class="modal-close-btn" onclick="closeCustomConfirm(false)" title="关闭">&times;</button>
+            </div>
+            <div class="custom-modal-message" id="custom-confirm-message"></div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeCustomConfirm(false)">取 消</button>
+                <button class="btn-modal btn-confirm" onclick="closeCustomConfirm(true)">确 定</button>
+            </div>
+        </div>
+
+        <div id="history-modal" class="modal modal-lg hidden-by-default">
+            <div class="modal-header">
+                <span>历史版本管理</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="history-layout">
+                <div class="history-list-pane" id="history-list-container"></div>
+                <div class="history-preview-pane">
+                    <textarea id="history-detail-text" class="history-preview-textarea" readonly placeholder="点击左侧版本查看全文..."></textarea>
+                    <div class="modal-button-row">
+                        <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
+                        <button class="btn-modal btn-confirm" id="btn-restore-history" onclick="restoreSelectedHistory()" disabled>恢复此版本</button>
+                    </div>
                 </div>
             </div>
-            <button class="submit-btn" id="stop-btn" onclick="stopLLM()"
-            style="display: none; background-color: #ff4d4f;">
-            <span>停 止</span>
-        </button>
-        <button class="submit-btn" id="submit-btn" onclick="submitToLLM()">
-            <span id="submit-text">提 交</span>
-            <div class="loader" id="submit-loader"></div>
-        </button>
-    </div>
-</div>
-
-<div id="floating-toolbar" class="floating-toolbar">
-    <button onclick="floatingAction('polish')">✨ 润色</button>
-    <button onclick="floatingAction('rewrite')">📝 扩写</button>
-    <button onclick="floatingAction('summarize')">📄 浓缩</button>
-</div>
-
-<div id="modal-overlay" class="modal-overlay">
-
-    <div id="history-modal" class="modal" style="display: none; width: 900px; max-width: 95vw;">
-        <div class="modal-header">
-            <span>历史版本管理</span>
-            <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
         </div>
-        <div class="history-layout">
-            <div class="history-list-pane" id="history-list-container"></div>
-            <div class="history-preview-pane">
-                <textarea id="history-detail-text" class="history-preview-textarea" readonly
-            placeholder="点击左侧版本查看全文..."></textarea>
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+
+        <div id="tech-modal" class="modal modal-lg hidden-by-default">
+            <div class="modal-header">
+                <span>写作技能管理</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="history-layout">
+                <div class="history-list-pane" id="tech-list-container"></div>
+                <div class="history-preview-pane">
+                    <div class="modal-group">
+                        <label>技能名称</label>
+                        <input type="text" id="tech-title" placeholder="如：技术方案写作技能">
+                    </div>
+                    <div class="modal-group">
+                        <label>使用场景或条件</label>
+                        <input type="text" id="tech-condition" placeholder="在什么情况下触发此技能？">
+                    </div>
+                    <div class="modal-group modal-group-flex">
+                        <label>技能描述</label>
+                        <textarea id="tech-desc" class="tech-desc-textarea" placeholder="详细的指导说明..."></textarea>
+                    </div>
+                    <div class="modal-button-row modal-button-row-tech">
+                        <button class="btn-modal btn-confirm" onclick="saveTechnique()">保存修改</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="replace-modal" class="modal hidden-by-default">
+            <div class="modal-header">
+                <span>批量替换文本</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="modal-group">
+                <label>查找内容</label>
+                <input type="text" id="repl-search" placeholder="输入要查找的文字 (支持正则)">
+            </div>
+            <div class="modal-group">
+                <label>替换为</label>
+                <input type="text" id="repl-target" placeholder="输入替换后的文字">
+            </div>
+            <div class="modal-group modal-checkbox-row">
+                <input type="checkbox" id="repl-regex">
+                <label for="repl-regex" class="modal-checkbox-label">使用正则表达式</label>
+            </div>
+            <div class="modal-actions">
                 <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
-                <button class="btn-modal btn-confirm" id="btn-restore-history"
-                onclick="restoreSelectedHistory()" disabled>恢复此版本</button>
+                <button class="btn-modal btn-confirm" onclick="executeReplace()">全部替换</button>
             </div>
         </div>
-    </div>
-</div>
 
-<div id="tech-modal" class="modal" style="display: none; width: 850px; max-width: 95vw;">
-    <div class="modal-header">
-        <span>写作技能管理</span>
-        <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
-    </div>
-    <div class="history-layout">
-        <div class="history-list-pane" id="tech-list-container"></div>
-        <div class="history-preview-pane">
-            <div class="modal-group">
-                <label>技能名称</label>
-                <input type="text" id="tech-title" placeholder="如：技术方案写作技能">
+        <div id="config-modal" class="modal hidden-by-default">
+            <div class="modal-header">
+                <span>LLM 接口配置</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
             </div>
             <div class="modal-group">
-                <label>使用场景或条件</label>
-                <input type="text" id="tech-condition" placeholder="在什么情况下触发此技能？">
+                <label>接口 URL (例如: https://api.openai.com/v1/chat/completions)</label>
+                <input type="text" id="cfg-url" placeholder="必须完整包含 /v1/chat/completions">
             </div>
-            <div class="modal-group" style="flex:1;">
-                <label>技能描述</label>
-                <textarea id="tech-desc" placeholder="详细的指导说明..."
-            style="height:100%; min-height:120px;"></textarea>
-        </div>
-        <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
-            <button class="btn-modal btn-confirm" onclick="saveTechnique()">保存修改</button>
-        </div>
-    </div>
-</div>
-</div>
-
-<div id="replace-modal" class="modal" style="display: none;">
-    <div class="modal-header">
-        <span>批量替换文本</span>
-        <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
-    </div>
-    <div class="modal-group">
-        <label>查找内容</label>
-        <input type="text" id="repl-search" placeholder="输入要查找的文字 (支持正则)">
-    </div>
-    <div class="modal-group">
-        <label>替换为</label>
-        <input type="text" id="repl-target" placeholder="输入替换后的文字">
-    </div>
-    <div class="modal-group" style="flex-direction: row; align-items: center; gap: 8px;">
-        <input type="checkbox" id="repl-regex">
-        <label for="repl-regex" style="font-size: 14px; cursor: pointer;">使用正则表达式</label>
-    </div>
-    <div class="modal-actions">
-        <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
-        <button class="btn-modal btn-confirm" onclick="executeReplace()">全部替换</button>
-    </div>
-</div>
-
-<div id="config-modal" class="modal" style="display: none;">
-    <div class="modal-header">
-        <span>LLM 接口配置</span>
-        <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
-    </div>
-    <div class="modal-group">
-        <label>接口 URL (例如: https://api.openai.com/v1/chat/completions)</label>
-        <input type="text" id="cfg-url" placeholder="必须完整包含 /v1/chat/completions">
-    </div>
-    <div class="modal-group">
-        <label>API Key</label>
-        <input type="password" id="cfg-key" placeholder="输入您的 API Key">
-    </div>
-    <div class="modal-group">
-        <label>模型名称 (Model Name)</label>
-        <input type="text" id="cfg-model" placeholder="例如: gpt-3.5-turbo">
-    </div>
-    <div class="modal-group">
-        <label>温度参数 (Temperature: 0.0 - 2.0)</label>
-        <input type="number" id="cfg-temp" step="0.1" min="0" max="2" value="0.7">
-    </div>
-    <div class="modal-actions">
-        <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
-        <button class="btn-modal btn-confirm" onclick="saveConfig()">保存配置</button>
-    </div>
-</div>
-
-<div id="ref-modal" class="modal" style="display: none; width: 900px; max-width: 95vw; height: 75vh; max-height: 85vh;">
-    <div class="modal-header">
-        <span>📚 管理参考资料</span>
-        <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
-    </div>
-    <div class="history-layout" style="flex:1; height:auto; min-height:0;">
-        <div class="history-list-pane" id="ref-list-pane" style="overflow-y:visible; display:flex; flex-direction:column;">
-            <div class="ref-batch-bar" id="ref-batch-bar" style="display: none;">
-                <span class="ref-batch-count" id="ref-batch-count">已选 0 项</span>
-                <button class="ref-batch-btn" onclick="batchEnableRefs(true)">全部启用</button>
-                <button class="ref-batch-btn" onclick="batchEnableRefs(false)">全部停用</button>
-            </div>
-            <div class="ref-list-scroll" id="ref-list-container"></div>
-            <div class="ref-list-footer">
-                <button class="ref-action-btn" onclick="addNewReference()">➕ 新建</button>
-                <label class="ref-action-btn" style="cursor:pointer;">📂 导入
-                    <input type="file" accept=".txt,.md" onchange="readLocalFile(event)" style="display:none;">
-                </label>
-            </div>
-        </div>
-        <div class="history-preview-pane" id="ref-edit-pane">
             <div class="modal-group">
-                <label>资料名称</label>
-                <input type="text" id="ref-title" placeholder="如：公司背景介绍">
+                <label>API Key</label>
+                <input type="password" id="cfg-key" placeholder="输入您的 API Key" autocomplete="new-password">
             </div>
-            <div class="modal-group" style="flex:1;">
-                <label>参考内容</label>
-                <textarea id="ref-content" placeholder="在此粘贴参考资料..."
-            style="height:100%; min-height:200px;"></textarea>
+            <div class="modal-group">
+                <label>模型名称 (Model Name)</label>
+                <input type="text" id="cfg-model" placeholder="例如: gpt-3.5-turbo">
+            </div>
+            <div class="modal-group">
+                <label>温度参数 (Temperature: 0.0 - 2.0)</label>
+                <input type="number" id="cfg-temp" step="0.1" min="0" max="2" value="0.7">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
+                <button class="btn-modal btn-confirm" onclick="saveConfig()">保存配置</button>
+            </div>
         </div>
-        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 8px;">
-            <span id="ref-save-hint" style="font-size:12px; color:var(--btn-primary); display:none;">✅ 已保存</span>
-            <button class="btn-modal btn-cancel" onclick="deleteRefFromList(currentRefIndex)" id="btn-delete-ref" style="display: none;">🗑️ 删除</button>
-            <button class="btn-modal btn-confirm" id="btn-save-ref" onclick="saveReference()">💾 保存</button>
+
+        <div id="ref-modal" class="modal modal-xl hidden-by-default">
+            <div class="modal-header">
+                <span>📚 管理参考资料</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="history-layout ref-modal-history-layout">
+                <div class="history-list-pane ref-list-pane-flex" id="ref-list-pane">
+                    <div class="ref-batch-bar hidden-by-default" id="ref-batch-bar">
+                        <span class="ref-batch-count" id="ref-batch-count">已选 0 项</span>
+                        <button class="ref-batch-btn" onclick="batchEnableRefs(true)">全部启用</button>
+                        <button class="ref-batch-btn" onclick="batchEnableRefs(false)">全部停用</button>
+                    </div>
+                    <div class="ref-list-scroll" id="ref-list-container"></div>
+                    <div class="ref-list-footer">
+                        <button class="ref-action-btn" onclick="addNewReference()">➕ 新建</button>
+                        <label class="ref-action-btn">
+                            📂 导入
+                            <input type="file" accept=".txt,.md" onchange="readLocalFile(event)" class="hidden-file-input">
+                        </label>
+                    </div>
+                </div>
+                <div class="history-preview-pane" id="ref-edit-pane">
+                    <div class="modal-group">
+                        <label>资料名称</label>
+                        <input type="text" id="ref-title" placeholder="如：公司背景介绍">
+                    </div>
+                    <div class="modal-group modal-group-flex">
+                        <label>参考内容</label>
+                        <textarea id="ref-content" class="ref-content-textarea" placeholder="在此粘贴参考资料..."></textarea>
+                    </div>
+                    <div class="modal-button-row modal-button-row-ref">
+                        <span id="ref-save-hint" class="ref-save-hint hidden-by-default">✅ 已保存</span>
+                        <button class="btn-modal btn-cancel hidden-by-default" onclick="deleteRefFromList(currentRefIndex)" id="btn-delete-ref">🗑️ 删除</button>
+                        <button class="btn-modal btn-confirm" id="btn-save-ref" onclick="saveReference()">💾 保存</button>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
-</div>
-</div>
 
-<div id="guide-modal" class="modal" style="display: none; width: 850px; max-width: 95vw;">
-    <div class="modal-header">
-        <span>📖 智能写作助手 使用说明</span>
-        <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
-    </div>
-    <div class="modal-group"
-    style="flex:1; overflow-y:auto; max-height: 60vh; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; background: var(--editor-bg);">
-    <div id="guide-content" class="editor-preview markdown-body" style="display: block; padding: 10px;"></div>
-</div>
-<div class="modal-actions">
-    <button class="btn-modal btn-confirm" onclick="closeModal()">我已了解</button>
-</div>
-</div>
+        <div id="guide-modal" class="modal modal-lg hidden-by-default">
+            <div class="modal-header">
+                <span>📖 智能写作助手 使用说明</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="modal-group guide-content-group">
+                <div id="guide-content" class="editor-preview markdown-body guide-content-inner"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-confirm" onclick="closeModal()">我已了解</button>
+            </div>
+        </div>
 
-<div id="sysprompt-modal" class="modal" style="display: none; width: 600px;">
-    <div class="modal-header">
-        <span>System Prompt (只读)</span>
-        <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
-    </div>
-    <div class="modal-group">
-        <label style="color:var(--btn-primary); font-weight:bold;">系统底层提示词，强制约束 LLM 的行为与输出格式（已适配三种模式）：</label>
-        <textarea id="sys-content"
-        style="height: 350px; line-height:1.5; font-family: monospace; background: var(--bg-sidebar); border: none;"
-        readonly></textarea>
-    </div>
-    <div class="modal-actions">
-        <button class="btn-modal btn-cancel" onclick="closeModal()">关闭</button>
-    </div>
-</div>
+        <div id="sysprompt-modal" class="modal modal-md hidden-by-default">
+            <div class="modal-header">
+                <span>System Prompt (只读)</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="modal-group">
+                <label class="sys-prompt-label">系统底层提示词，强制约束 LLM 的行为与输出格式（已适配三种模式）：</label>
+                <textarea id="sys-content" class="sys-prompt-textarea" readonly></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeModal()">关闭</button>
+            </div>
+        </div>
 
-<div id="llm-details-modal" class="modal" style="display: none; width: 650px;">
-    <div class="modal-header">
-        <span>LLM 请求调试详情</span>
-        <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
-    </div>
-    <div class="modal-group" id="llm-error-group" style="display: none;">
-        <label style="color: red; font-weight: bold;">❌ 错误信息</label>
-        <div id="llm-error-msg"
-        style="color: red; font-size: 13px; background: #fee; padding: 10px; border-radius: 6px; border: 1px solid #fcc; word-break: break-all;">
-    </div>
-</div>
-<div class="modal-group">
-    <label>Request Payload (提交内容)</label>
-    <textarea id="llm-req-text" class="readonly-textarea" readonly></textarea>
-</div>
-<div class="modal-group">
-    <label>Response / Exception (流式输出全记录)</label>
-    <textarea id="llm-res-text" class="readonly-textarea" readonly></textarea>
-</div>
-<div class="modal-actions">
-    <button class="btn-modal btn-cancel" onclick="closeModal()">关闭</button>
-</div>
-</div>
-</div>
+        <div id="llm-details-modal" class="modal modal-md hidden-by-default">
+            <div class="modal-header">
+                <span>LLM 请求调试详情</span>
+                <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
+            </div>
+            <div class="modal-group hidden-by-default" id="llm-error-group">
+                <label class="llm-error-label">❌ 错误信息</label>
+                <div id="llm-error-msg" class="llm-error-msg"></div>
+            </div>
+            <div class="modal-group">
+                <label>Request Payload (提交内容)</label>
+                <textarea id="llm-req-text" class="readonly-textarea" readonly></textarea>
+            </div>
+            <div class="modal-group">
+                <label>Response / Exception (流式输出全记录)</label>
+                <textarea id="llm-res-text" class="readonly-textarea" readonly></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" onclick="closeModal()">关闭</button>
+            </div>
+        </div>
 
-<script src="js/html-docx.min.js">
-</script>
+    </div>
+
+<script src="js/html-docx.min.js"></script>
 <script>
     // --- 核心配置初始化 ---
+    // Fix #17: marked v4+ 已移除 highlight 选项，改用自定义 renderer
     if (typeof marked !== 'undefined') {
         marked.setOptions({
-            highlight: function(code, lang) {
-                if (lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
-                    try { return hljs.highlight(code, { language: lang }).value; } catch (__) {}
-                }
-                return code;
-            },
+            gfm: true,
             breaks: true
         });
+
+        // 自定义代码块渲染器，对接 highlight.js
+        const _renderer = new marked.Renderer();
+        const _originalCode = _renderer.code.bind(_renderer);
+        _renderer.code = function(code, lang) {
+            if (lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
+                try {
+                    return '<pre><code class="hljs language-' + lang + '">' +
+                           hljs.highlight(code, { language: lang }).value +
+                           '</code></pre>';
+                } catch (__) {}
+            }
+            return _originalCode(code, lang);
+        };
+        marked.setOptions({ renderer: _renderer });
     }
 
     if (typeof mermaid !== 'undefined') {
@@ -611,7 +355,7 @@
     }
 
     // ===================== 【使用说明】 =====================
-    var usingGuide = `# 👋 欢迎使用智能写作助手 2.6
+    var usingGuide = `# 👋 欢迎使用智能写作助手 2.7
 
 这是一个运行在浏览器中的**本地 AI 写作伙伴**，您的所有数据和配置都安全地保存在自己的设备上，服务器无法访问您的任何内容。
 
@@ -682,7 +426,7 @@
 请检查：① 是否已配置 LLM 接口；② API Key 是否有效；③ 接口地址是否正确（需包含完整路径）；④ 网络是否通畅。
 
 **Q：文章会丢失吗？**
-不会。所有内容自动保存到浏览器本地，每隔约 1 秒自动存档一次。同时在「🕒 历史版本」中可以找到所有存档。
+不会。所有内容自动保存到浏览器本地，每隔约 5 秒自动存档一次。同时在「🕒 历史版本」中可以找到所有存档。
 
 **Q：如何让 AI 的输出更符合我的需求？**
 - 在「💡 写作技能」中启用对应的专业技能
@@ -708,7 +452,7 @@
 
 ## Profile:
 - author: AI Writing Assistant System
-- version: 2.6
+- version: 2.7
 - language: 中文
 - description: 你是一个具备深厚文字功底的专业写作助手。你的核心使命是严格遵循用户的各项标签指令，高效、精准地进行文本处理。
 
@@ -754,8 +498,7 @@
                     db.createObjectStore('store');
                 }
             };
-            request.onsuccess = (e) => { dbInstance = e.target.result;
-                resolve(dbInstance); };
+            request.onsuccess = (e) => { dbInstance = e.target.result; resolve(dbInstance); };
             request.onerror = (e) => reject(e);
         });
     }
@@ -779,9 +522,7 @@
                 try {
                     const decoded = req.result ? JSON.parse(decodeURIComponent(escape(atob(req.result)))) : null;
                     resolve(decoded);
-                } catch (e) {
-                    resolve(null);
-                }
+                } catch (e) { resolve(null); }
             };
             req.onerror = () => resolve(null);
         });
@@ -796,15 +537,82 @@
     const saveTimeEl = document.getElementById('save-time');
     const statusIcon = document.getElementById('llm-status-icon');
 
+    let measureDummy = null;
+
     // ===================== 【自动滚动相关全局变量】 =====================
-    // 是否启用自动滚动（用户交互后变为false）
     let autoScrollEnabled = true;
-    // 清理用户交互监听器的函数引用
     let autoScrollCleanup = null;
+    // ====================================================================
+
+    // ===================== 【自定义 Modal 替代原生 alert/confirm】 =====================
+    let alertResolve = null;
+    let confirmResolve = null;
+
+    // Fix #11: 使用 classList 统一管理模态框显隐
+    function showModal(modalId) {
+        document.getElementById('modal-overlay').classList.remove('hidden-by-default');
+        document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden-by-default'));
+        document.getElementById(modalId).classList.remove('hidden-by-default');
+    }
+
+    function hideModal(modalId) {
+        document.getElementById(modalId).classList.add('hidden-by-default');
+        // 若没有任何 modal 可见，关闭遮罩层
+        if (!document.querySelector('.modal:not(.hidden-by-default)')) {
+            document.getElementById('modal-overlay').classList.add('hidden-by-default');
+        }
+    }
+
+    function showAlert(message, title = '提示') {
+        return new Promise(resolve => {
+            document.getElementById('custom-alert-title').innerText = title;
+            document.getElementById('custom-alert-message').innerText = message;
+            showModal('custom-alert-modal');
+            alertResolve = resolve;
+        });
+    }
+
+    function closeCustomAlert() {
+        hideModal('custom-alert-modal');
+        if (alertResolve) {
+            alertResolve();
+            alertResolve = null;
+        }
+    }
+
+    function showConfirm(message, title = '确认') {
+        return new Promise(resolve => {
+            document.getElementById('custom-confirm-title').innerText = title;
+            document.getElementById('custom-confirm-message').innerText = message;
+            showModal('custom-confirm-modal');
+            confirmResolve = resolve;
+        });
+    }
+
+    function closeCustomConfirm(result) {
+        hideModal('custom-confirm-modal');
+        if (confirmResolve) {
+            confirmResolve(result);
+            confirmResolve = null;
+        }
+    }
     // ====================================================================
 
     window.onload = async () => {
         editor.placeholder = '在此输入或粘贴您的文章正文...\n点击下方"帮助"按钮可以查看使用说明';
+
+        // 初始化持久化测量 DOM
+        measureDummy = document.getElementById('scroll-measure-dummy');
+        const editorStyle = window.getComputedStyle(editor);
+        const copyProps = [
+            'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+            'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing',
+            'wordSpacing', 'lineHeight', 'textIndent', 'textTransform',
+            'whiteSpace', 'wordBreak', 'wordWrap', 'tabSize'
+        ];
+        copyProps.forEach(prop => {
+            measureDummy.style[prop] = editorStyle[prop];
+        });
 
         await initDB();
         const savedHistory = await dbGet('writer_history');
@@ -818,10 +626,12 @@
         }
         await loadLocalData();
 
+        // Fix #13: 初始化时同步切换 highlight.js 主题
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
             document.documentElement.setAttribute('data-theme', 'dark');
             document.getElementById('theme-btn').innerText = '☀️ 浅色';
+            document.getElementById('hljs-theme').href = 'css/github-dark.min.css';
         }
 
         updateUI();
@@ -838,13 +648,34 @@
 
         editor.addEventListener('mouseup', handleEditorSelection);
         editor.addEventListener('keyup', handleEditorSelection);
+        editor.addEventListener('touchend', handleEditorSelection);
 
         document.addEventListener('selectionchange', function() {
             if (document.activeElement === editor && !isPreviewMode) {
                 handleEditorSelection();
             }
         });
+
+        applyResponsiveInitialState();
     };
+
+    // 响应式初始状态：窄屏默认折叠侧栏，避免挤压主区
+    function applyResponsiveInitialState() {
+        if (window.innerWidth <= 768) {
+            document.getElementById('app-sidebar').classList.add('collapsed');
+        }
+    }
+
+    // 窗口尺寸变化：仅桌面→移动方向自动折叠，反向不强制展开
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            if (window.innerWidth <= 768) {
+                document.getElementById('app-sidebar').classList.add('collapsed');
+            }
+        }, 150);
+    });
 
     function handleEditorSelection(e) {
         updateSelectionHint();
@@ -853,14 +684,20 @@
         const floatingTb = document.getElementById('floating-toolbar');
 
         if (start !== end && !isPreviewMode) {
-            if (floatingTb.style.display !== 'flex') {
-                floatingTb.style.display = 'flex';
+            floatingTb.classList.remove('hidden-by-default');
+            if (window.innerWidth <= 768) {
+                floatingTb.style.left = '50%';
+                floatingTb.style.top = '';
+                floatingTb.style.bottom = '20px';
+                floatingTb.style.transform = 'translate(-50%, 0)';
+            } else {
                 floatingTb.style.left = '50%';
                 floatingTb.style.top = '20%';
+                floatingTb.style.bottom = '';
                 floatingTb.style.transform = 'translate(-50%, 0)';
             }
         } else {
-            floatingTb.style.display = 'none';
+            floatingTb.classList.add('hidden-by-default');
         }
     }
 
@@ -877,15 +714,12 @@
                 if (text.length > 32) {
                     let startText = text.substring(0, 18);
                     let endText = text.substring(text.length - 12);
-                    hintSpan.innerHTML =
-                        `<span style="color:var(--btn-primary); font-size:13px; margin-left:10px; background:#f0f4f8; padding:2px 8px; border-radius:4px; border: 1px solid var(--btn-blue);">🎯 修改范围：${startText} ...... ${endText}</span>`;
+                    hintSpan.innerHTML = `<span style="color:var(--btn-primary); font-size:13px; margin-left:10px; background:#f0f4f8; padding:2px 8px; border-radius:4px; border: 1px solid var(--btn-blue);">🎯 修改范围：${startText} ...... ${endText}</span>`;
                 } else {
-                    hintSpan.innerHTML =
-                        `<span style="color:var(--btn-primary); font-size:13px; margin-left:10px; background:#f0f4f8; padding:2px 8px; border-radius:4px; border: 1px solid var(--btn-blue);">🎯 修改范围：${text}</span>`;
+                    hintSpan.innerHTML = `<span style="color:var(--btn-primary); font-size:13px; margin-left:10px; background:#f0f4f8; padding:2px 8px; border-radius:4px; border: 1px solid var(--btn-blue);">🎯 修改范围：${text}</span>`;
                 }
             } else {
-                hintSpan.innerHTML =
-                    `<span style="color:red; font-size:13px; margin-left:10px;">⚠️ 请在正文中选择要修改的文字</span>`;
+                hintSpan.innerHTML = `<span style="color:red; font-size:13px; margin-left:10px;">⚠️ 请在正文中选择要修改的文字</span>`;
             }
         } else {
             hintSpan.innerHTML = '';
@@ -894,7 +728,7 @@
 
     function floatingAction(mode) {
         setPromptMode(mode);
-        document.getElementById('floating-toolbar').style.display = 'none';
+        document.getElementById('floating-toolbar').classList.add('hidden-by-default');
     }
 
     function stopLLM() {
@@ -909,51 +743,123 @@
         sidebar.classList.toggle('collapsed');
     }
 
+    // Fix #13: 切换深色模式时同步切换 highlight.js 主题
     function toggleTheme() {
         const currentTheme = document.documentElement.getAttribute('data-theme');
         const btn = document.getElementById('theme-btn');
+        const hljsLink = document.getElementById('hljs-theme');
         if (currentTheme === 'dark') {
             document.documentElement.removeAttribute('data-theme');
             localStorage.setItem('theme', 'light');
             btn.innerText = '🌓 暗色';
+            hljsLink.href = 'css/github.min.css';
         } else {
             document.documentElement.setAttribute('data-theme', 'dark');
             localStorage.setItem('theme', 'dark');
             btn.innerText = '☀️ 浅色';
+            hljsLink.href = 'css/github-dark.min.css';
+        }
+        // 切换主题后，如果处于渲染模式则重渲染以应用新主题
+        if (isPreviewMode) renderMarkdownView();
+    }
+
+    // Fix #18: docx 导出时先在隐藏容器中渲染 Markdown + KaTeX
+    async function downloadDocx() {
+        const text = editor.value;
+        if (!text.trim()) { await showAlert("当前文章为空，暂无内容可下载！"); return; }
+        if (typeof htmlDocx === 'undefined') { await showAlert("找不到 html-docx 插件。"); return; }
+
+        // 创建隐藏渲染容器
+        const tempContainer = document.createElement('div');
+        tempContainer.className = 'docx-render-container markdown-body editor-preview';
+        document.body.appendChild(tempContainer);
+
+        try {
+            // 1. 提取数学块占位符
+            const mathBlocks = [];
+            const placeholderText = text.replace(/(\$\$[\s\S]*?\$\$|\$[^$\n]*?\$)/g, (match) => {
+                mathBlocks.push(match);
+                return `XYZMATHBLOCK${mathBlocks.length - 1}XYZ`;
+            });
+
+            // 2. 渲染 Markdown
+            let html = marked.parse(placeholderText);
+            html = html.replace(/XYZMATHBLOCK(\d+)XYZ/g, (match, i) => mathBlocks[i]);
+            tempContainer.innerHTML = html;
+
+            // 3. 渲染数学公式（关键修复：让 KaTeX 把 $x^2$ 转为真实 HTML）
+            if (typeof renderMathInElement !== 'undefined') {
+                renderMathInElement(tempContainer, {
+                    delimiters: [
+                        { left: '$$', right: '$$', display: true },
+                        { left: '$', right: '$', display: false },
+                        { left: '\\(', right: '\\)', display: false },
+                        { left: '\\[', right: '\\]', display: true }
+                    ],
+                    throwOnError: false
+                });
+            }
+
+            // 4. Mermaid 图表用占位符代替（SVG 转 docx 效果差）
+            const mermaidBlocks = tempContainer.querySelectorAll('.language-mermaid');
+            mermaidBlocks.forEach(block => {
+                const code = block.textContent;
+                const placeholder = document.createElement('div');
+                placeholder.className = 'mermaid-export-placeholder';
+                placeholder.textContent = '[Mermaid 图表，请在渲染模式中查看]\n\n```mermaid\n' + code + '\n```';
+                if (block.parentNode && block.parentNode.tagName === 'PRE') {
+                    block.parentNode.replaceWith(placeholder);
+                } else {
+                    block.replaceWith(placeholder);
+                }
+            });
+
+            // 5. 构造带内联样式的完整 HTML（docx 兼容性好）
+            const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Document</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; line-height: 1.6; padding: 20px; }
+h1, h2, h3, h4, h5, h6 { margin: 16px 0 8px 0; }
+h1 { font-size: 28px; } h2 { font-size: 24px; } h3 { font-size: 20px; }
+h4 { font-size: 18px; } h5 { font-size: 16px; } h6 { font-size: 14px; }
+p { margin: 8px 0; }
+pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow: auto; font-family: Consolas, "Courier New", monospace; }
+code { background: rgba(175, 184, 193, 0.2); padding: 2px 4px; border-radius: 3px; font-family: Consolas, "Courier New", monospace; }
+pre code { background: transparent; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+table th, table td { border: 1px solid #d0d7de; padding: 6px 13px; }
+table th { background: #f6f8fa; font-weight: bold; }
+blockquote { border-left: 4px solid #d0d7de; padding: 0 16px; color: #57606a; margin: 16px 0; }
+ul, ol { padding-left: 32px; }
+img { max-width: 100%; }
+.mermaid-export-placeholder { border: 1px dashed #999; padding: 10px; color: #666; font-style: italic; background: #f5f5f5; white-space: pre-wrap; font-family: monospace; }
+</style>
+</head><body>${tempContainer.innerHTML}</body></html>`;
+
+            const converted = htmlDocx.asBlob(fullHtml);
+            const url = URL.createObjectURL(converted);
+            const a = document.createElement('a');
+            a.href = url;
+            const now = new Date();
+            const timeStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+            a.download = `文章正文_${timeStr}.docx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } finally {
+            document.body.removeChild(tempContainer);
         }
     }
 
-    function downloadDocx() {
+    async function downloadMarkdown() {
         const text = editor.value;
-        if (!text.trim()) { alert("当前文章为空，暂无内容可下载！"); return; }
-        if (typeof htmlDocx === 'undefined') { alert("找不到 html-docx 插件。"); return; }
-        let htmlContent = marked.parse(text);
-        let fullHtml =
-            `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Document</title></head><body>${htmlContent}</body></html>`;
-        var converted = htmlDocx.asBlob(fullHtml);
-        var url = URL.createObjectURL(converted);
-        var a = document.createElement('a');
-        a.href = url;
-        const now = new Date();
-        const timeStr =
-            `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
-        a.download = `文章正文_${timeStr}.docx`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    function downloadMarkdown() {
-        const text = editor.value;
-        if (!text.trim()) { alert("当前文章为空，暂无内容可下载！"); return; }
+        if (!text.trim()) { await showAlert("当前文章为空，暂无内容可下载！"); return; }
         const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         const now = new Date();
-        const timeStr =
-            `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+        const timeStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
         a.download = `文章正文_${timeStr}.md`;
         document.body.appendChild(a);
         a.click();
@@ -968,7 +874,7 @@
         updateStats();
         updateSelectionHint();
         clearTimeout(timeout);
-        timeout = setTimeout(() => saveState(editor.value), 1000);
+        timeout = setTimeout(() => saveState(editor.value), 5000);
     }
 
     function saveState(text) {
@@ -979,8 +885,7 @@
         historyIndex = history.length - 1;
         dbSet('writer_history', history);
         const now = new Date();
-        saveTimeEl.innerText =
-            `最后保存: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        saveTimeEl.innerText = `最后保存: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     }
 
     function undo() {
@@ -992,8 +897,9 @@
         }
     }
 
-    function clearContent() {
-        if (confirm('确定要开始写一篇新文章吗？当前文章内容将清空（但已自动保存历史版本，可随时撤回恢复）。')) {
+    async function clearContent() {
+        const ok = await showConfirm('确定要开始写一篇新文章吗？当前文章内容将清空（但已自动保存历史版本，可随时撤回恢复）。');
+        if (ok) {
             editor.value = '';
             saveState('');
             updateUI();
@@ -1003,9 +909,11 @@
     }
 
     async function clearAllData() {
-        if (!confirm('确定要清理所有浏览器缓存数据吗？\n\n这将删除：\n- 所有文章历史版本\n- LLM 接口配置\n- 所有参考资料\n- 所有写作技能设置\n\n此操作不可恢复！')) return;
+        const ok1 = await showConfirm('确定要清理所有浏览器缓存数据吗？\n\n这将删除：\n- 所有文章历史版本\n- LLM 接口配置\n- 所有参考资料\n- 所有写作技能设置\n\n此操作不可恢复！');
+        if (!ok1) return;
 
-        if (!confirm('再次确认：所有数据将被永久删除，是否继续？')) return;
+        const ok2 = await showConfirm('再次确认：所有数据将被永久删除，是否继续？');
+        if (!ok2) return;
 
         if (!dbInstance) await initDB();
 
@@ -1022,11 +930,11 @@
             });
 
             tx.oncomplete = () => {
-                localStorage.clear();
+                try { localStorage.clear(); } catch (e) {}
                 location.reload();
             };
             tx.onerror = () => {
-                alert('清理数据时出错：' + tx.error);
+                showAlert('清理数据时出错：' + tx.error);
                 reject(tx.error);
             };
         });
@@ -1040,8 +948,10 @@
         btnRestore.disabled = true;
         btnRestore.innerText = '恢复此版本';
         currentSelectedHistoryIndex = -1;
-        if (history.length === 0) { container.innerHTML =
-                '<p style="color:#aaa; text-align:center; padding: 20px;">暂无历史记录</p>'; return; }
+        if (history.length === 0) {
+            container.innerHTML = '<p style="color:#aaa; text-align:center; padding: 20px;">暂无历史记录</p>';
+            return;
+        }
         for (let i = history.length - 1; i >= 0; i--) {
             const text = history[i];
             const previewText = text ? text.substring(0, 30).replace(/\n/g, ' ') + '...' : '[空文本]';
@@ -1052,8 +962,7 @@
             item.id = 'history-item-' + i;
             const isCurrent = i === historyIndex;
             const titleStr = isCurrent ? `版本 ${i + 1} (当前)` : `版本 ${i + 1}`;
-            item.innerHTML =
-                `<div class="history-info"><div class="history-title" style="${isCurrent ? 'color: var(--btn-primary);' : ''}">${titleStr}</div><div style="font-size:12px; color:#888;">字数: ${wordCount}</div><div class="history-preview" title="${text}">${previewText}</div></div>`;
+            item.innerHTML = `<div class="history-info"><div class="history-title" style="${isCurrent ? 'color: var(--btn-primary);' : ''}">${titleStr}</div><div style="font-size:12px; color:#888;">字数: ${wordCount}</div><div class="history-preview" title="${text}">${previewText}</div></div>`;
             item.onclick = () => selectHistory(i);
             container.appendChild(item);
         }
@@ -1063,15 +972,18 @@
 
     function selectHistory(index) {
         currentSelectedHistoryIndex = index;
-        document.querySelectorAll('#history-list-container .history-item').forEach(el => el.classList.remove(
-            'active'));
+        document.querySelectorAll('#history-list-container .history-item').forEach(el => el.classList.remove('active'));
         const activeItem = document.getElementById('history-item-' + index);
         if (activeItem) activeItem.classList.add('active');
         document.getElementById('history-detail-text').value = history[index] || "";
         const btn = document.getElementById('btn-restore-history');
-        if (index === historyIndex) { btn.disabled = true;
-            btn.innerText = '当前正处于此版本'; } else { btn.disabled = false;
-            btn.innerText = '恢复此版本'; }
+        if (index === historyIndex) {
+            btn.disabled = true;
+            btn.innerText = '当前正处于此版本';
+        } else {
+            btn.disabled = false;
+            btn.innerText = '恢复此版本';
+        }
     }
 
     function restoreSelectedHistory() {
@@ -1098,27 +1010,21 @@
             if (i === currentTechIndex) item.classList.add('active');
             item.onclick = () => selectTech(i);
 
-            // 第一行：技能标题
             const topRow = document.createElement('div');
             topRow.innerHTML = `<div class="tech-item-title">${tech.title}</div>`;
 
-            // 第二行：操作区
             const bottomRow = document.createElement('div');
             bottomRow.style.display = 'flex';
             bottomRow.style.alignItems = 'center';
             bottomRow.style.justifyContent = 'flex-end';
             bottomRow.style.gap = '10px';
 
-            // 启用/停用开关
             const toggleBtn = document.createElement('button');
             toggleBtn.className = 'tech-item-btn';
-            toggleBtn.innerHTML = tech.enabled ? '<span style="color:#2e7d32;">🟢 已启用</span>' :
-                '<span style="color:#757575;">⚪ 已停用</span>';
+            toggleBtn.innerHTML = tech.enabled ? '<span style="color:#2e7d32;">🟢 已启用</span>' : '<span style="color:#757575;">⚪ 已停用</span>';
             toggleBtn.title = tech.enabled ? '点击停用' : '点击启用';
-            toggleBtn.onclick = (e) => { e.stopPropagation();
-                toggleTechEnabled(i); };
+            toggleBtn.onclick = (e) => { e.stopPropagation(); toggleTechEnabled(i); };
 
-            // 删除按钮
             const delBtn = document.createElement('button');
             delBtn.className = 'tech-item-btn';
             delBtn.innerHTML = '<span style="color:#d32f2f;">🗑️ 删除</span>';
@@ -1126,8 +1032,7 @@
             delBtn.style.opacity = '0.7';
             delBtn.onmouseenter = () => delBtn.style.opacity = '1';
             delBtn.onmouseleave = () => delBtn.style.opacity = '0.7';
-            delBtn.onclick = (e) => { e.stopPropagation();
-                deleteTechFromList(i); };
+            delBtn.onclick = (e) => { e.stopPropagation(); deleteTechFromList(i); };
 
             bottomRow.appendChild(toggleBtn);
             bottomRow.appendChild(delBtn);
@@ -1137,13 +1042,10 @@
             container.appendChild(item);
         });
 
-        // 添加底部的新建技能按钮
         const addBtnContainer = document.createElement('div');
-        addBtnContainer.style.marginTop = '15px';
-        addBtnContainer.style.padding = '0 10px';
+        addBtnContainer.className = 'add-btn-container';
         const addBtn = document.createElement('button');
-        addBtn.className = 'btn-modal btn-cancel';
-        addBtn.style.width = '100%';
+        addBtn.className = 'btn-modal btn-cancel btn-full-width';
         addBtn.innerHTML = '➕ 新建技能';
         addBtn.onclick = addNewTechnique;
         addBtnContainer.appendChild(addBtn);
@@ -1164,7 +1066,8 @@
 
     async function deleteTechFromList(index) {
         if (index >= 0 && techniques[index]) {
-            if (confirm(`确定要删除技能「${techniques[index].title}」吗？`)) {
+            const ok = await showConfirm(`确定要删除技能「${techniques[index].title}」吗？`);
+            if (ok) {
                 techniques.splice(index, 1);
                 await dbSet('writer_techniques', techniques);
                 if (currentTechIndex === index) {
@@ -1213,12 +1116,10 @@
         const desc = document.getElementById('tech-desc').value.trim();
 
         if (currentTechIndex === -1) {
-            // 新增
             const newTech = { id: Date.now(), title: title, condition: condition, description: desc, enabled: true };
             techniques.push(newTech);
             currentTechIndex = techniques.length - 1;
         } else if (currentTechIndex >= 0 && techniques[currentTechIndex]) {
-            // 修改
             const tech = techniques[currentTechIndex];
             tech.title = title;
             tech.condition = condition;
@@ -1226,7 +1127,7 @@
         }
         await dbSet('writer_techniques', techniques);
         renderTechList();
-        alert('写作技能已保存！');
+        await showAlert('写作技能已保存！');
     }
 
     function updateUI() {
@@ -1276,17 +1177,13 @@
 
     async function renderMarkdownView() {
         let text = editor.value;
-        // if (!text.trim()) text = usingGuide;
-
         try {
-            // 1. 公式保护机制：在 marked 解析前，把公式抽离成占位符，防止 _ 和 * 被错误解析成斜体/粗体
             const mathBlocks = [];
             let placeholderText = text.replace(/(\$\$[\s\S]*?\$\$|\$[^$\n]*?\$)/g, (match) => {
                 mathBlocks.push(match);
-                return `XYZMATHBLOCK${mathBlocks.length - 1}XYZ`; // 纯字母占位符，不会触发 Markdown
+                return `XYZMATHBLOCK${mathBlocks.length - 1}XYZ`;
             });
 
-            // 2. 渲染 Markdown
             let html;
             if (typeof marked !== 'undefined') {
                 html = marked.parse(placeholderText);
@@ -1294,14 +1191,12 @@
                 html = `<pre>${placeholderText}</pre>`;
             }
 
-            // 3. 将公式占位符替换回真实的数学公式
             html = html.replace(/XYZMATHBLOCK(\d+)XYZ/g, (match, i) => {
                 return mathBlocks[i];
             });
 
             preview.innerHTML = html;
 
-            // 4. 调用 KaTeX 渲染公式
             if (typeof renderMathInElement !== 'undefined') {
                 renderMathInElement(preview, {
                     delimiters: [
@@ -1314,26 +1209,20 @@
                 });
             }
 
-            // 5. 渲染 Mermaid 图表
             if (typeof mermaid !== 'undefined') {
                 const mermaidBlocks = preview.querySelectorAll('.language-mermaid');
                 for (let i = 0; i < mermaidBlocks.length; i++) {
                     const block = mermaidBlocks[i];
-                    const code = block.textContent; // 获取纯净的代码文本
+                    const code = block.textContent;
 
                     const container = document.createElement('div');
                     container.className = 'mermaid';
 
                     try {
-                        // 加入 Date.now() 确保每次切换渲染模式时 ID 绝对唯一，防止冲突
                         const chartId = 'mermaid-chart-' + Date.now() + '-' + i;
                         const renderResult = await mermaid.render(chartId, code);
+                        container.innerHTML = typeof renderResult === 'string' ? renderResult : renderResult.svg;
 
-                        // 兼容旧版 Mermaid (v9 返回 string) 与 新版 (v10+ 返回对象 {svg})
-                        container.innerHTML = typeof renderResult === 'string' ? renderResult : renderResult
-                            .svg;
-
-                        // 替换原有的 <pre> 代码块
                         if (block.parentNode && block.parentNode.tagName === 'PRE') {
                             block.parentNode.replaceWith(container);
                         } else {
@@ -1341,8 +1230,7 @@
                         }
                     } catch (e) {
                         console.error("Mermaid Render Error:", e);
-                        container.innerHTML =
-                            `<pre style="color:red; font-size: 12px; background: #fee; padding: 10px;">Mermaid Syntax Error:\n${e.message}</pre>`;
+                        container.innerHTML = `<pre style="color:red; font-size: 12px; background: #fee; padding: 10px;">Mermaid Syntax Error:\n${e.message}</pre>`;
                         if (block.parentNode && block.parentNode.tagName === 'PRE') {
                             block.parentNode.replaceWith(container);
                         } else {
@@ -1356,23 +1244,18 @@
         }
     }
 
-	function updateOutline() {
-        const text = editor.value; 
-        // 🚨 删除了原有的 replace！
-        // 使用高级正则：(?:...)|(?:...)
-        // 前半部分匹配代码块，后半部分匹配标题。以此来完美跳过代码块中的假标题，且不改变字符串真实长度
+    function updateOutline() {
+        const text = editor.value;
         const regex = /(?:```[\s\S]*?```)|(?:^(#{1,3})\s+(.*)$)/gm;
-        
+
         let match;
         outlineList.innerHTML = '';
         let count = 0;
         let headingIndex = 0;
 
         while ((match = regex.exec(text)) !== null) {
-            // 如果 match[1] 不存在，说明当前匹配到的是"代码块"，直接跳过不做处理
             if (!match[1]) continue;
 
-            // 此时匹配到的才是真正的标题
             count++;
             const level = match[1].length;
             const title = match[2];
@@ -1380,51 +1263,27 @@
             div.className = `outline-item outline-h${level}`;
             div.innerText = title;
             div.title = title;
-            
-            // 🚨 现在的 matchIndex 是基于未删减的绝对原始文本，100% 精准！
-            const matchIndex = match.index; 
+
+            const matchIndex = match.index;
             const currentHeadingIndex = headingIndex;
 
             div.onclick = () => {
                 if (!isPreviewMode) {
                     editor.focus();
                     editor.setSelectionRange(matchIndex, matchIndex);
-                    
-                    const clone = document.createElement('div');
+
                     const style = window.getComputedStyle(editor);
-                    
-                    const copyProps = [
-                        'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-                        'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 
-                        'wordSpacing', 'lineHeight', 'textIndent', 'textTransform', 
-                        'whiteSpace', 'wordBreak', 'wordWrap', 'tabSize'
-                    ];
-                    
-                    clone.style.cssText = 'position: absolute; visibility: hidden; border: none; top: -9999px; left: -9999px;';
-                    
-                    copyProps.forEach(prop => {
-                        clone.style[prop] = style[prop];
-                    });
-                    
-                    clone.style.width = editor.clientWidth + 'px';
-                    clone.style.boxSizing = 'border-box';
-                    clone.style.border = 'none';
-                    clone.style.overflow = 'hidden';
-                    clone.style.whiteSpace = 'pre-wrap'; 
-                    
-                    clone.textContent = text.substring(0, matchIndex);
-                    
+
+                    if (!measureDummy) return;
+                    measureDummy.style.width = editor.clientWidth + 'px';
+                    measureDummy.textContent = text.substring(0, matchIndex);
                     const span = document.createElement('span');
-                    span.textContent = '|'; 
-                    clone.appendChild(span);
-                    
-                    document.body.appendChild(clone);
-                    
+                    span.textContent = '|';
+                    measureDummy.appendChild(span);
+
                     const targetOffsetTop = span.offsetTop;
-                    document.body.removeChild(clone);
-                    
                     editor.scrollTop = targetOffsetTop - parseInt(style.paddingTop || 0) - 10;
-                    
+
                 } else {
                     const headings = preview.querySelectorAll('h1, h2, h3');
                     if (headings[currentHeadingIndex]) headings[currentHeadingIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1453,11 +1312,14 @@
                 for (const defTech of DEFAULT_TECHNIQUES) {
                     const existTech = techniques.find(t => t.id === defTech.id);
                     if (existTech) {
-                        if (existTech.description !== defTech.description) { existTech.description = defTech
-                                .description;
-                            needSave = true; }
-                    } else { techniques.push({ ...defTech });
-                        needSave = true; }
+                        if (existTech.description !== defTech.description) {
+                            existTech.description = defTech.description;
+                            needSave = true;
+                        }
+                    } else {
+                        techniques.push({ ...defTech });
+                        needSave = true;
+                    }
                 }
                 if (needSave) await dbSet('writer_techniques', techniques);
             } else {
@@ -1467,10 +1329,9 @@
         } catch (error) { console.error("Failed to load local data:", error); }
     }
 
+    // Fix #11: openModal 使用 classList 替代 style.display
     function openModal(modalId) {
-        document.getElementById('modal-overlay').style.display = 'flex';
-        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
-        document.getElementById(modalId).style.display = 'flex';
+        showModal(modalId);
 
         if (modalId === 'config-modal') {
             document.getElementById('cfg-url').value = appConfig.url || '';
@@ -1483,25 +1344,33 @@
             document.getElementById('tech-condition').value = '';
             document.getElementById('tech-desc').value = '';
             currentTechIndex = -1;
-        } else if (modalId === 'history-modal') { 
-			renderHistoryList(); 
-		} else if (modalId === 'guide-modal') {
-			document.getElementById('guide-content').innerHTML = marked.parse(usingGuide || ''); 
-		} else if (modalId === 'sysprompt-modal') { 
-			document.getElementById('sys-content').value = appConfig.sysPrompt || sysPromptText || ''; 
-		} else if (modalId === 'ref-modal') {
+        } else if (modalId === 'history-modal') {
+            renderHistoryList();
+        } else if (modalId === 'guide-modal') {
+            document.getElementById('guide-content').innerHTML = marked.parse(usingGuide || '');
+        } else if (modalId === 'sysprompt-modal') {
+            document.getElementById('sys-content').value = appConfig.sysPrompt || sysPromptText || '';
+        } else if (modalId === 'ref-modal') {
             renderRefList();
             currentRefIndex = -1;
             document.getElementById('ref-edit-pane').classList.remove('editing');
         }
     }
 
+    // Fix #11: closeModal 使用 classList 替代 style.display
     function closeModal() {
-        document.getElementById('modal-overlay').style.display = 'none';
-        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        document.querySelectorAll('.modal').forEach(m => {
+            if (m.id !== 'custom-alert-modal' && m.id !== 'custom-confirm-modal') {
+                m.classList.add('hidden-by-default');
+            }
+        });
+        const anyOpen = document.querySelector('.modal:not(.hidden-by-default)');
+        if (!anyOpen) {
+            document.getElementById('modal-overlay').classList.add('hidden-by-default');
+        }
     }
 
-    function executeReplace() {
+    async function executeReplace() {
         const searchStr = document.getElementById('repl-search').value;
         const targetStr = document.getElementById('repl-target').value;
         const isRegex = document.getElementById('repl-regex').checked;
@@ -1516,7 +1385,9 @@
             closeModal();
             document.getElementById('repl-search').value = '';
             document.getElementById('repl-target').value = '';
-        } catch (e) { alert("替换出错: " + e.message); }
+        } catch (e) {
+            await showAlert("替换出错: " + e.message);
+        }
     }
 
     function saveConfig() {
@@ -1540,13 +1411,13 @@
                 <div class="ref-empty-icon">📭</div>
                 <div class="ref-empty-text">暂无参考资料<br>点击下方按钮新建或导入</div>
             </div>`;
-            batchBar.style.display = 'none';
+            batchBar.classList.add('hidden-by-default');
             editPane.classList.remove('editing');
             selectRef(-1);
             return;
         }
 
-        batchBar.style.display = 'flex';
+        batchBar.classList.remove('hidden-by-default');
         updateBatchCount();
 
         refDataList.forEach((ref, i) => {
@@ -1566,9 +1437,9 @@
 
             const body = document.createElement('div');
             body.className = 'ref-item-body';
-            const preview = ref.content ? ref.content.replace(/\n/g, ' ').substring(0, 50) + (ref.content.length > 50 ? '...' : '') : '点击编辑内容...';
+            const previewText = ref.content ? ref.content.replace(/\n/g, ' ').substring(0, 50) + (ref.content.length > 50 ? '...' : '') : '点击编辑内容...';
             body.innerHTML = `<div class="ref-item-name">${ref.title || '未命名资料'}</div>
-                <div class="ref-item-preview">${preview}</div>`;
+                <div class="ref-item-preview">${previewText}</div>`;
 
             const delBtn = document.createElement('button');
             delBtn.className = 'ref-item-delete';
@@ -1586,7 +1457,6 @@
             container.appendChild(item);
         });
 
-        // Maintain selection
         if (currentRefIndex >= 0 && currentRefIndex < refDataList.length) {
             selectRef(currentRefIndex);
         } else if (refDataList.length > 0) {
@@ -1604,8 +1474,7 @@
 
     function updateBatchCount() {
         const enabledCount = refDataList.filter(r => r.enabled !== false).length;
-        document.getElementById('ref-batch-count').textContent =
-            `启用 ${enabledCount} / ${refDataList.length} 项`;
+        document.getElementById('ref-batch-count').textContent = `启用 ${enabledCount} / ${refDataList.length} 项`;
     }
 
     function batchEnableRefs(enabled) {
@@ -1628,15 +1497,15 @@
             const ref = refDataList[index];
             document.getElementById('ref-title').value = ref.title || '';
             document.getElementById('ref-content').value = ref.content || '';
-            delBtn.style.display = 'inline-block';
+            delBtn.classList.remove('hidden-by-default');
             editPane.classList.add('editing');
         } else {
             document.getElementById('ref-title').value = '';
             document.getElementById('ref-content').value = '';
-            delBtn.style.display = 'none';
+            delBtn.classList.add('hidden-by-default');
             editPane.classList.remove('editing');
         }
-        document.getElementById('ref-save-hint').style.display = 'none';
+        document.getElementById('ref-save-hint').classList.add('hidden-by-default');
     }
 
     function addNewReference() {
@@ -1644,8 +1513,8 @@
         document.querySelectorAll('#ref-list-container .ref-item').forEach(el => el.classList.remove('active'));
         document.getElementById('ref-title').value = '';
         document.getElementById('ref-content').value = '';
-        document.getElementById('btn-delete-ref').style.display = 'none';
-        document.getElementById('ref-save-hint').style.display = 'none';
+        document.getElementById('btn-delete-ref').classList.add('hidden-by-default');
+        document.getElementById('ref-save-hint').classList.add('hidden-by-default');
         document.getElementById('ref-edit-pane').classList.remove('editing');
         document.getElementById('ref-title').focus();
     }
@@ -1664,15 +1533,15 @@
         await dbSet('writer_ref_data_list', refDataList);
         renderRefList();
 
-        // 保存反馈
         const hint = document.getElementById('ref-save-hint');
-        hint.style.display = 'inline';
-        setTimeout(() => { hint.style.display = 'none'; }, 2000);
+        hint.classList.remove('hidden-by-default');
+        setTimeout(() => { hint.classList.add('hidden-by-default'); }, 2000);
     }
 
     async function deleteRefFromList(index) {
         if (index >= 0 && refDataList[index]) {
-            if (confirm(`确定要删除参考资料「${refDataList[index].title || '未命名资料'}」吗？`)) {
+            const ok = await showConfirm(`确定要删除参考资料「${refDataList[index].title || '未命名资料'}」吗？`);
+            if (ok) {
                 refDataList.splice(index, 1);
                 await dbSet('writer_ref_data_list', refDataList);
                 if (currentRefIndex === index) {
@@ -1706,92 +1575,72 @@
         document.getElementById('llm-req-text').value = lastLLMReq;
         document.getElementById('llm-res-text').value = lastLLMRes;
         const errGroup = document.getElementById('llm-error-group');
-        if (lastLLMErr) { errGroup.style.display = 'flex';
-            document.getElementById('llm-error-msg').innerText = lastLLMErr; } else { errGroup.style.display = 'none'; }
+        if (lastLLMErr) {
+            errGroup.classList.remove('hidden-by-default');
+            document.getElementById('llm-error-msg').innerText = lastLLMErr;
+        } else {
+            errGroup.classList.add('hidden-by-default');
+        }
         openModal('llm-details-modal');
     }
 
+    // Fix #6: 模式变化时给下拉框一个高亮闪烁动画
     function setPromptMode(mode) {
         const modeSelect = document.getElementById('llm-mode-select');
         const start = editor.selectionStart;
         const end = editor.selectionEnd;
         const promptInput = document.getElementById('llm-prompt');
+        const oldValue = modeSelect.value;
+        let newValue;
 
         for (let i = 0; i < modeSelect.options.length; i++) {
             if (modeSelect.options[i].value === 'local-preview') { modeSelect.remove(i); break; }
         }
 
         if (mode === 'ai_gen') {
-            modeSelect.value = 'append';
+            newValue = 'append';
             promptInput.value = '请仔细阅读提供的【完整文章上下文】，在此基础上继续生成后续内容。要求：逻辑连贯，格式排版、语言风格与前文一致。';
         } else {
-            if (start !== end && !isPreviewMode) modeSelect.value = 'local';
-            else modeSelect.value = 'full';
+            if (start !== end && !isPreviewMode) newValue = 'local';
+            else newValue = 'full';
             if (mode === 'rewrite') promptInput.value = '把当前内容展开描写，补充详细内容，或者补充具体例子';
             else if (mode === 'summarize') promptInput.value = '对当前内容提炼主要内容和观点，编写更概况性的内容';
-            else if (mode === 'polish') promptInput.value =
-                '请对文本进行精修润色。要求：纠正所有的错别字、标点错误和语法问题，提升词汇的高级感与专业度，使行文更加自然，严格保持原文主旨不变。';
+            else if (mode === 'polish') promptInput.value = '请对文本进行精修润色。要求：纠正所有的错别字、标点错误和语法问题，提升词汇的高级感与专业度，使行文更加自然，严格保持原文主旨不变。';
         }
+
+        modeSelect.value = newValue;
+
+        // Fix #6: 视觉反馈 - 模式变化时给下拉框一个高亮闪烁动画
+        if (oldValue !== newValue) {
+            modeSelect.classList.remove('mode-changed');
+            void modeSelect.offsetWidth; // 强制 reflow 重新触发动画
+            modeSelect.classList.add('mode-changed');
+        }
+
         updateSelectionHint();
         promptInput.focus();
     }
 
     // ===================== 【自动滚动辅助函数】 =====================
-
-    /**
-     * 计算指定文本在textarea中的滚动位置（文本末尾对应的scrollTop值）
-     * 使用与updateOutline相同的clone方法精确测量
-     * @param {string} text - 要计算滚动位置的文本
-     * @returns {number} - 对应的scrollTop值
-     */
-	function getScrollPositionForText(text) {
-        const clone = document.createElement('div');
+    function getScrollPositionForText(text) {
+        if (!measureDummy) return 0;
         const style = window.getComputedStyle(editor);
-        
-        const copyProps = [
-            'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-            'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 
-            'wordSpacing', 'lineHeight', 'textIndent', 'textTransform', 
-            'whiteSpace', 'wordBreak', 'wordWrap', 'tabSize'
-        ];
-        
-        clone.style.cssText = 'position: absolute; visibility: hidden; top: -9999px; left: -9999px;';
-        copyProps.forEach(prop => clone.style[prop] = style[prop]);
-        
-        // 🚨 同样应用核心修复
-        clone.style.width = editor.clientWidth + 'px';
-        clone.style.boxSizing = 'border-box';
-        clone.style.border = 'none';
-        clone.style.overflow = 'hidden';
-        clone.style.whiteSpace = 'pre-wrap';
-        
-        clone.textContent = text;
-        document.body.appendChild(clone);
-        const scrollY = clone.offsetHeight;
-        document.body.removeChild(clone);
+        measureDummy.style.width = editor.clientWidth + 'px';
+        measureDummy.textContent = text;
+        const scrollY = measureDummy.offsetHeight;
         return Math.max(0, scrollY - parseInt(style.paddingTop || 20));
     }
 
-    /**
-     * 设置自动滚动：初始滚动到目标位置，并注册用户交互监听器
-     * 一旦用户点击鼠标、滚动滚轮、触摸屏幕或按下导航键，则取消本次自动滚动
-     * @param {string} mode - 编辑模式 ('full' | 'local' | 'append')
-     * @param {string} baseTextPre - 修改位置之前的文本（局部修改时用于定位）
-     */
     function setupAutoScroll(mode, baseTextPre) {
         autoScrollEnabled = true;
 
-        // 初始滚动到待修改位置
         if (mode === 'local' && baseTextPre) {
-            // 局部修改：滚动到被选中段落的起始位置（baseTextPre的末尾）
             const targetScroll = getScrollPositionForText(baseTextPre);
             editor.scrollTop = Math.max(0, targetScroll - 80);
         } else {
-            // 全文修改/末尾追加：滚动到文章末尾
             editor.scrollTop = editor.scrollHeight;
         }
 
-        // 标记是否已触发清理（防止重复清理）
         let cleaned = false;
 
         const cleanup = () => {
@@ -1812,14 +1661,11 @@
         };
 
         const onWheel = (e) => {
-            // 滚轮事件：用户在editor上滚动鼠标滚轮
             autoScrollEnabled = false;
             cleanup();
         };
 
         const onDocWheel = (e) => {
-            // 用户在页面其他区域滚动滚轮（可能是在预览区或页面本身）
-            // 仅在事件目标不是editor时处理（editor上的由onWheel处理）
             if (e.target !== editor && !editor.contains(e.target)) {
                 autoScrollEnabled = false;
                 cleanup();
@@ -1827,7 +1673,6 @@
         };
 
         const onDocMouseDown = (e) => {
-            // 用户在页面任意位置点击鼠标
             if (e.target !== editor && !editor.contains(e.target)) {
                 autoScrollEnabled = false;
                 cleanup();
@@ -1835,7 +1680,6 @@
         };
 
         const onKeyDown = (e) => {
-            // 检测滚动相关的键盘操作
             const scrollKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '];
             if (scrollKeys.includes(e.key)) {
                 autoScrollEnabled = false;
@@ -1843,23 +1687,17 @@
             }
         };
 
-        // 在editor上注册事件
         editor.addEventListener('wheel', onWheel, { passive: true });
         editor.addEventListener('mousedown', onUserInteract);
         editor.addEventListener('keydown', onKeyDown);
         editor.addEventListener('touchstart', onUserInteract, { passive: true });
 
-        // 在document上也注册（捕获用户在编辑器外的交互）
         document.addEventListener('wheel', onDocWheel, { passive: true });
         document.addEventListener('mousedown', onDocMouseDown);
 
-        // 保存清理函数引用，供外部调用
         autoScrollCleanup = cleanup;
     }
 
-    /**
-     * 清理自动滚动状态和事件监听器
-     */
     function cleanupAutoScroll() {
         if (autoScrollCleanup) {
             autoScrollCleanup();
@@ -1867,18 +1705,15 @@
         }
         autoScrollEnabled = false;
     }
-
     // ====================================================================
 
-    // 1. 主控函数：负责整体请求调度与异常捕获
     async function submitToLLM() {
         const promptInput = document.getElementById('llm-prompt').value.trim();
-        if (!promptInput) { alert("请输入需要发送给 LLM 的指令！"); return; }
-        if (!appConfig.url) { alert("请先在 [⚙️ LLM配置] 中设置正确的接口 URL。"); return; }
+        if (!promptInput) { await showAlert("请输入需要发送给 LLM 的指令！"); return; }
+        if (!appConfig.url) { await showAlert("请先在 [⚙️ LLM配置] 中设置正确的接口 URL。"); return; }
 
-        // 构建请求上下文
-        const ctx = buildLLMContext(promptInput);
-        if (!ctx) return; // 校验失败（如未选中文本）则终止
+        const ctx = await buildLLMContext(promptInput);
+        if (!ctx) return;
 
         abortController = new AbortController();
         lastLLMReq = JSON.stringify(ctx.payload, null, 2);
@@ -1886,18 +1721,13 @@
         lastLLMErr = "";
         const startTime = Date.now();
 
-        setLLMUIState(true); // 切换为加载中 UI
-
-        // ============ 【新增】设置自动滚动 ============
-        // 在UI锁定后、流式处理前，滚动到目标位置并注册用户交互检测
+        setLLMUIState(true);
         setupAutoScroll(ctx.mode, ctx.baseTextPre);
-        // ===========================================
 
         try {
             const response = await fetch(appConfig.url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${appConfig.key}`,
-                    'Accept': 'text/event-stream' },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${appConfig.key}`, 'Accept': 'text/event-stream' },
                 body: lastLLMReq,
                 signal: abortController.signal
             });
@@ -1907,45 +1737,36 @@
                 throw new Error(`HTTP ${response.status}: ${errText}`);
             }
 
-            // 处理流式输出
             const streamResult = await processSSEStream(response.body.getReader(), ctx);
 
-            // 收尾更新
             saveState(editor.value);
             updateUI();
 
-            // 记录交互历史
             interactionHistory.push({ user: promptInput, assistant: streamResult.finalText });
             if (interactionHistory.length > 10) interactionHistory.shift();
             dbSet('writer_interaction_history', interactionHistory);
 
-            // 更新统计看板
             const duration = Date.now() - startTime;
-            let displayReasoning = streamResult.rawReasoningText ?
-                `\n\n【独立思考过程 (reasoning_content)】\n${streamResult.rawReasoningText}` : '';
-            lastLLMRes =
-                `【SSE 流式传输成功】\n最终提取文本字数：${streamResult.finalText.length}\n最终生成Tokens：${streamResult.outputTokens}${displayReasoning}\n\n【底层原始完整输出 (content)】\n${streamResult.rawOutputText}`;
+            let displayReasoning = streamResult.rawReasoningText ? `\n\n【独立思考过程 (reasoning_content)】\n${streamResult.rawReasoningText}` : '';
+            lastLLMRes = `【SSE 流式传输成功】\n最终提取文本字数：${streamResult.finalText.length}\n最终生成Tokens：${streamResult.outputTokens}${displayReasoning}\n\n【底层原始完整输出 (content)】\n${streamResult.rawOutputText}`;
 
             statusIcon.className = 'status-icon success';
             statusIcon.title = "请求成功，点击查看详情";
-            document.getElementById('llm-stats').innerHTML =
-                `<span>耗时: ${duration}ms</span> | <span>输入: ${streamResult.actualInputTokens} Tokens</span> | <span>输出: ${streamResult.outputTokens} Tokens</span>`;
+            document.getElementById('llm-stats').innerHTML = `<span>耗时: ${duration}ms</span> | <span>输入: ${streamResult.actualInputTokens} Tokens</span> | <span>输出: ${streamResult.outputTokens} Tokens</span>`;
 
         } catch (error) {
             const duration = Date.now() - startTime;
             lastLLMErr = error.toString();
             statusIcon.className = 'status-icon error';
             statusIcon.title = "请求失败，点击查看详情";
-            document.getElementById('llm-stats').innerHTML =
-                `<span style="color:red;">耗时: ${duration}ms (失败)</span> | <span>输入: ~${ctx.estimatedTokens} Tokens</span> | <span>输出: 0 Tokens</span>`;
+            document.getElementById('llm-stats').innerHTML = `<span style="color:red;">耗时: ${duration}ms (失败)</span> | <span>输入: ~${ctx.estimatedTokens} Tokens</span> | <span>输出: 0 Tokens</span>`;
         } finally {
-            setLLMUIState(false); // 恢复 UI 状态（内部会清理自动滚动）
+            setLLMUIState(false);
             abortController = null;
         }
     }
 
-    // 2. 数据构建：负责处理文本截取、System Prompt 组装
-    function buildLLMContext(promptInput) {
+    async function buildLLMContext(promptInput) {
         const modeSelect = document.getElementById('llm-mode-select').value;
         const fullText = editor.value;
         const originalStart = editor.selectionStart;
@@ -1953,27 +1774,24 @@
         const selectedText = fullText.substring(originalStart, originalEnd);
 
         if (modeSelect === 'local' && originalStart === originalEnd) {
-            alert("【局部修改】模式下，请先在编辑器正文中选中需要修改的文字范围！");
+            await showAlert("【局部修改】模式下，请先在编辑器正文中选中需要修改的文字范围！");
             return null;
         }
 
         const modeStrMap = { 'full': '全文修改', 'local': '局部修改', 'append': '末尾追加' };
         const modeStr = modeStrMap[modeSelect] || '全文修改';
 
-        let userContent =
-            `<edit_mode>${modeStr}</edit_mode>\n<task_instruction>\n${promptInput}\n</task_instruction>\n\n`;
+        let userContent = `<edit_mode>${modeStr}</edit_mode>\n<task_instruction>\n${promptInput}\n</task_instruction>\n\n`;
         const enabledRefs = refDataList.filter(r => r.enabled && r.content.trim() !== "");
         for (const ref of enabledRefs) {
             userContent += `<reference_material>\n## ${ref.title}\n${ref.content}\n</reference_material>\n\n`;
         }
 
-        let baseTextPre = "",
-            baseTextPost = "";
+        let baseTextPre = "", baseTextPost = "";
         if (modeSelect === 'local') {
             baseTextPre = fullText.substring(0, originalStart);
             baseTextPost = fullText.substring(originalEnd);
-            userContent +=
-                `<before_selection>\n${baseTextPre}\n</before_selection>\n\n<target_text_to_process>\n${selectedText}\n</target_text_to_process>\n\n<after_selection>\n${baseTextPost}\n</after_selection>\n`;
+            userContent += `<before_selection>\n${baseTextPre}\n</before_selection>\n\n<target_text_to_process>\n${selectedText}\n</target_text_to_process>\n\n<after_selection>\n${baseTextPost}\n</after_selection>\n`;
         } else if (modeSelect === 'append') {
             baseTextPre = fullText + (fullText.endsWith('\n') ? "" : "\n\n");
             userContent += `<full_context>\n${fullText}\n</full_context>\n`;
@@ -1982,20 +1800,15 @@
         }
 
         let finalSysPrompt = sysPromptText;
-        let techStr = techniques.filter(t => t.enabled).map(t =>
-            `- **技能名称**：${t.title}\n  - **使用场景**：${t.condition}\n  - **执行要求**：${t.description}\n`).join(
-            '');
+        let techStr = techniques.filter(t => t.enabled).map(t => `- **技能名称**：${t.title}\n  - **使用场景**：${t.condition}\n  - **执行要求**：${t.description}\n`).join('');
         if (techStr) {
-            finalSysPrompt +=
-                `\n\n## 启用的专属写作技能:\n当前用户为你启用了以下专属写作技能。这是你执行任务的最高准则！请仔细阅读其【使用场景】和【执行要求】，写作技能在【使用场景】与写作要求、文体类型、用户指令匹配时才生效。写作技能生效时，在生成内容时严格贯彻其写作风格、语气和结构排版规范，如果技能要求与常规行为冲突，以技能要求为准：\n${techStr}`;
+            finalSysPrompt += `\n\n## 启用的专属写作技能:\n当前用户为你启用了以下专属写作技能。这是你执行任务的最高准则！请仔细阅读其【使用场景】和【执行要求】，写作技能在【使用场景】与写作要求、文体类型、用户指令匹配时才生效。写作技能生效时，在生成内容时严格贯彻其写作风格、语气和结构排版规范，如果技能要求与常规行为冲突，以技能要求为准：\n${techStr}`;
         }
 
         let messagesPayload = [{ role: "system", content: finalSysPrompt }];
         for (let msg of interactionHistory.slice(-10)) {
-            messagesPayload.push({ role: "user", content: msg.user.length > 200 ? msg.user.substring(0, 200) +
-                    '...[已截断]' : msg.user });
-            messagesPayload.push({ role: "assistant", content: msg.assistant.length > 200 ? msg.assistant.substring(0,
-                    200) + '...[已截断]' : msg.assistant });
+            messagesPayload.push({ role: "user", content: msg.user.length > 200 ? msg.user.substring(0, 200) + '...[已截断]' : msg.user });
+            messagesPayload.push({ role: "assistant", content: msg.assistant.length > 200 ? msg.assistant.substring(0, 200) + '...[已截断]' : msg.assistant });
         }
         messagesPayload.push({ role: "user", content: userContent });
 
@@ -2013,19 +1826,17 @@
             payload,
             baseTextPre,
             baseTextPost,
-            mode: modeSelect, // 【新增】传递模式信息，供自动滚动使用
+            mode: modeSelect,
             estimatedTokens: Math.floor(JSON.stringify(payload).length * 0.8)
         };
     }
 
-    // 3. UI 状态管理器：控制按钮、加载条与禁用逻辑
     function setLLMUIState(isProcessing) {
         const btn = document.getElementById('submit-btn');
         const btnText = document.getElementById('submit-text');
         const loader = document.getElementById('submit-loader');
         const stopBtn = document.getElementById('stop-btn');
 
-        btn.disabled = isProcessing;
         btn.style.display = isProcessing ? 'none' : 'flex';
         stopBtn.style.display = isProcessing ? 'flex' : 'none';
         btnText.style.display = isProcessing ? 'none' : 'block';
@@ -2036,22 +1847,17 @@
             statusIcon.className = 'status-icon loading';
             statusIcon.title = "请求发送中...";
         } else {
-            // ============ 【新增】流结束时清理自动滚动 ============
             cleanupAutoScroll();
-            // ===================================================
             if (isPreviewMode) renderMarkdownView();
             document.getElementById('selection-hint').innerHTML = '';
         }
     }
 
-    // 4. 数据流解析器：处理 SSE 流与节流渲染
     async function processSSEStream(reader, ctx) {
         const decoder = new TextDecoder('utf-8');
-        let buffer = '',
-            pendingData = '';
+        let buffer = '', pendingData = '';
         let lastRenderTime = 0;
 
-        // 声明状态机对象
         const state = {
             rawOutputText: '',
             rawReasoningText: '',
@@ -2084,13 +1890,10 @@
                         const data = JSON.parse(pendingData);
                         pendingData = '';
 
-                        // 更新 Token 统计
                         if (data.usage) {
-                            if (data.usage.completion_tokens) state.outputTokens = data.usage
-                                .completion_tokens;
+                            if (data.usage.completion_tokens) state.outputTokens = data.usage.completion_tokens;
                             if (data.usage.prompt_tokens) state.actualInputTokens = data.usage.prompt_tokens;
                         }
-                        // 核心流数据注入状态机
                         if (data.choices && data.choices[0].delta) {
                             const delta = data.choices[0].delta;
                             if (delta.reasoning_content) state.rawReasoningText += delta.reasoning_content;
@@ -2101,30 +1904,23 @@
             }
             if (isStreamDone) break;
 
-            // 节流渲染 UI (30fps)
             const now = Date.now();
             if (now - lastRenderTime >= 33) {
                 editor.value = ctx.baseTextPre + state.cleanOutputText + ctx.baseTextPost;
 
-                // ============ 【修改】条件性自动滚动 ============
                 if (autoScrollEnabled) {
                     if (ctx.mode === 'local' && ctx.baseTextPre) {
-                        // 局部修改：滚动到新输出内容的末尾（baseTextPre + cleanOutputText）
                         const targetText = ctx.baseTextPre + state.cleanOutputText;
                         const targetScroll = getScrollPositionForText(targetText);
                         editor.scrollTop = Math.max(0, targetScroll - 80);
                     } else {
-                        // 全文修改/末尾追加：滚动到文章末尾
                         editor.scrollTop = editor.scrollHeight;
                     }
                 }
-                // ===============================================
-
                 lastRenderTime = now;
             }
         }
 
-        // 【修复漏洞1】处理流意外断开时，残留在 buffer 中的最后一条数据
         if (buffer.trim()) {
             let chunkDataStr = buffer.replace(/(^|\n)data:\s*/gi, '').trim();
             if (chunkDataStr && chunkDataStr !== '[DONE]') {
@@ -2137,8 +1933,6 @@
             }
         }
 
-        // 【修复漏洞2】释放状态机为了检测 <think>/</think> 标签而强制扣留的最后几个字符
-        // isThinking=true 表示 <think> 未闭合，此时扣留内容属于思考过程，应静默丢弃
         if (state.lastProcessedIndex < state.rawOutputText.length) {
             if (!state.isThinking) {
                 state.cleanOutputText += state.rawOutputText.substring(state.lastProcessedIndex);
@@ -2146,15 +1940,13 @@
             state.lastProcessedIndex = state.rawOutputText.length;
         }
 
-        // 最终无损渲染
         const finalCleanText = state.cleanOutputText.trimStart();
         editor.value = ctx.baseTextPre + finalCleanText + ctx.baseTextPost;
         editor.focus();
         const endCursor = ctx.baseTextPre.length + finalCleanText.length;
         editor.setSelectionRange(endCursor, endCursor);
 
-        state.outputTokens = state.outputTokens || Math.floor((state.rawOutputText.length + state.rawReasoningText
-            .length) * 0.8);
+        state.outputTokens = state.outputTokens || Math.floor((state.rawOutputText.length + state.rawReasoningText.length) * 0.8);
         return {
             finalText: finalCleanText,
             rawOutputText: state.rawOutputText,
@@ -2164,7 +1956,6 @@
         };
     }
 
-    // 5. 状态机机制：专职拦截 `<think>` 标签内容
     function updateThinkStateMachine(state, newContent) {
         state.rawOutputText += newContent;
         let searchStart = state.lastProcessedIndex;
@@ -2178,7 +1969,6 @@
                         state.isThinking = true;
                         searchStart = thinkStart + '<think>'.length;
                     } else {
-                        // 安全防截断，保留7个字符看下文是否能拼成 <think>
                         let safeEnd = Math.max(searchStart, state.rawOutputText.length - 7);
                         if (safeEnd > searchStart) {
                             state.cleanOutputText += state.rawOutputText.substring(searchStart, safeEnd);
@@ -2193,7 +1983,6 @@
                         state.hasFinishedThinking = true;
                         searchStart = thinkEnd + '</think>'.length;
                     } else {
-                        // 安全防截断，保留8个字符看下文是否能拼成 </think>
                         let safeEnd = Math.max(searchStart, state.rawOutputText.length - 8);
                         if (safeEnd > searchStart) searchStart = safeEnd;
                         break;
