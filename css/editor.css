@@ -270,12 +270,90 @@ body {
 .history-item {
     cursor: pointer; border: 1px solid var(--border-color); border-radius: 6px; padding: 12px;
     display: flex; justify-content: space-between; align-items: center; background: var(--editor-bg); transition: 0.2s;
+    gap: 8px;
 }
 .history-item:hover { border-color: var(--btn-primary); }
 .history-item.active { border-color: var(--btn-primary); background: var(--btn-blue); box-shadow: 0 0 0 1px var(--btn-primary); }
-.history-info { display: flex; flex-direction: column; gap: 4px; overflow: hidden; width: 100%; }
-.history-title { font-size: 14px; font-weight: bold; color: var(--text-main); }
+.history-info { display: flex; flex-direction: column; gap: 4px; overflow: hidden; width: 100%; min-width: 0; }
+.history-info-row { display: flex; align-items: center; gap: 6px; }
+.history-title { font-size: 14px; font-weight: bold; color: var(--text-main); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history-preview { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+.history-item-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.history-star-btn, .history-delete-btn {
+    background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 4px;
+    font-size: 16px; line-height: 1; color: var(--text-muted); transition: 0.15s;
+}
+.history-star-btn:hover { background: rgba(255, 193, 7, 0.15); color: #f59f00; }
+.history-star-btn.starred { color: #f59f00; }
+.history-star-btn.starred:hover { background: rgba(255, 193, 7, 0.2); color: #d9480f; }
+.history-delete-btn:hover { background: rgba(211, 47, 47, 0.12); color: #d32f2f; }
+
+/* ===================== LLM 多配置管理弹窗 ===================== */
+.config-list-header {
+    padding: 8px 12px; margin-bottom: 8px;
+    font-size: 13px; color: var(--text-main);
+    background: rgba(82, 196, 26, 0.08);
+    border: 1px solid rgba(82, 196, 26, 0.3);
+    border-radius: 6px;
+    line-height: 1.5;
+}
+.config-list-header strong {
+    color: #2e7d32; font-size: 14px; font-weight: 600;
+    word-break: break-all;
+}
+.config-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid transparent; transition: 0.15s;
+    background: var(--editor-bg); margin-bottom: 6px;
+    position: relative;
+}
+.config-item:hover { background: var(--bg-sidebar); border-color: var(--border-color); }
+.config-item.selected {
+    background: var(--btn-blue);
+    border-color: var(--btn-primary);
+    box-shadow: 0 0 0 1px var(--btn-primary);
+}
+.config-item.active {
+    border-color: var(--btn-primary);
+    background: linear-gradient(135deg, rgba(140, 166, 193, 0.18), rgba(140, 166, 193, 0.08));
+    box-shadow: 0 0 0 2px var(--btn-primary);
+}
+.config-item.active.selected {
+    background: linear-gradient(135deg, rgba(140, 166, 193, 0.28), rgba(140, 166, 193, 0.15));
+}
+.config-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.config-item-name {
+    font-size: 14px; font-weight: 600; color: var(--text-main);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 6px;
+}
+.config-item-meta {
+    font-size: 11px; color: var(--text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.config-active-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    background: var(--btn-primary); color: #fff;
+    font-size: 10px; font-weight: 600; padding: 2px 6px;
+    border-radius: 10px; line-height: 1; flex-shrink: 0;
+}
+.config-use-btn {
+    flex-shrink: 0; padding: 4px 10px; font-size: 11px;
+    background: var(--btn-primary); color: #fff;
+    border: none; border-radius: 12px; cursor: pointer;
+    transition: 0.15s; line-height: 1.2;
+}
+.config-use-btn:hover { background: var(--btn-primary-hover); }
+
+/* "设为当前使用"按钮的禁用态（已激活时） */
+#btn-activate-config:disabled,
+#btn-activate-config[disabled] {
+    background: var(--border-color) !important;
+    color: var(--text-muted) !important;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
 
 /* ===================== 8. 参考资料与技能管理弹窗布局 ===================== */
 #ref-modal:not(.hidden-by-default), #tech-modal:not(.hidden-by-default) {
