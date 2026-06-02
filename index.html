@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能写作助手 2.7</title>
+    <title>智能写作助手 2.8</title>
 
     <script src="js/marked.min.js"></script>
 
@@ -17,6 +17,9 @@
     <script src="js/auto-render.min.js"></script>
     <script src="js/mermaid.min.js"></script>
     <script src="js/writeskills.js"></script>
+    <script src="js/jszip.min.js"></script>
+    <script src="js/mammoth.browser.min.js"></script>
+    <script src="js/turndown.js"></script>
 
     <link rel="stylesheet" href="css/editor.css">
 </head>
@@ -40,7 +43,7 @@
             <div class="tools-basic">
                 <button id="toggle-mode-btn" onclick="toggleMode()" title="编辑模式可以进行人工编辑和利用AI进行局部修改，渲染模式不可人工编辑和AI局部修改，但是可以全文修改">👁️ 切换渲染模式</button>
                 <div class="dropdown dropdown-wrapper">
-                    <button class="dropbtn" onclick="toggleDropdown()">⬇️ 下载 ▼</button>
+                    <button class="dropbtn" onclick="toggleDropdown('downloadDropdown', this)">⬇️ 下载 ▼</button>
                     <div class="dropdown-content" id="downloadDropdown">
                         <a href="#" onclick="downloadMarkdown(); return false;">下载为 Markdown (.md)</a>
                         <a href="#" onclick="downloadDocx(); return false;">下载为 Word (.docx)</a>
@@ -48,8 +51,22 @@
                 </div>
                 <button onclick="openModal('history-modal')">🕒 历史版本</button>
                 <button onclick="undo()">↶ 撤回</button>
-                <button onclick="clearContent()">📄 开始新文章</button>
-                <button onclick="clearAllData()">🧹 清理</button>
+                <div class="dropdown dropdown-wrapper">
+                    <button class="dropbtn" onclick="toggleDropdown('newArticleDropdown', this)">📄 开始新文章 ▼</button>
+                    <div class="dropdown-content" id="newArticleDropdown">
+                        <a href="#" onclick="clearContent(); return false;">📄 全新开始（清空）</a>
+                        <a href="#" onclick="importMD(); return false;">📥 导入 Markdown (.md)</a>
+                        <a href="#" onclick="importDocx(); return false;">📥 导入 Word (.docx)</a>
+                    </div>
+                </div>
+                <div class="dropdown dropdown-wrapper">
+                    <button class="dropbtn" onclick="toggleDropdown('dataManageDropdown', this)">📦 数据管理 ▼</button>
+                    <div class="dropdown-content" id="dataManageDropdown">
+                        <a href="#" onclick="clearAllData(); return false;">🧹 清理所有数据</a>
+                        <a href="#" onclick="exportAllData(); return false;">📤 导出数据</a>
+                        <a href="#" onclick="importData(); return false;">📥 导入数据</a>
+                    </div>
+                </div>
                 <button onclick="toggleTheme()" id="theme-btn" title="切换深色/浅色模式">🌓 暗色</button>
             </div>
         </div>
@@ -207,30 +224,49 @@
             </div>
         </div>
 
-        <div id="config-modal" class="modal hidden-by-default">
+        <div id="config-modal" class="modal modal-xl hidden-by-default">
             <div class="modal-header">
-                <span>LLM 接口配置</span>
+                <span>⚙️ LLM 接口配置</span>
                 <button class="modal-close-btn" onclick="closeModal()" title="关闭">&times;</button>
             </div>
-            <div class="modal-group">
-                <label>接口 URL (例如: https://api.openai.com/v1/chat/completions)</label>
-                <input type="text" id="cfg-url" placeholder="必须完整包含 /v1/chat/completions">
-            </div>
-            <div class="modal-group">
-                <label>API Key</label>
-                <input type="password" id="cfg-key" placeholder="输入您的 API Key" autocomplete="new-password">
-            </div>
-            <div class="modal-group">
-                <label>模型名称 (Model Name)</label>
-                <input type="text" id="cfg-model" placeholder="例如: gpt-3.5-turbo">
-            </div>
-            <div class="modal-group">
-                <label>温度参数 (Temperature: 0.0 - 2.0)</label>
-                <input type="number" id="cfg-temp" step="0.1" min="0" max="2" value="0.7">
-            </div>
-            <div class="modal-actions">
-                <button class="btn-modal btn-cancel" onclick="closeModal()">取消</button>
-                <button class="btn-modal btn-confirm" onclick="saveConfig()">保存配置</button>
+            <div class="history-layout config-modal-layout">
+                <div class="history-list-pane" id="config-list-pane">
+                    <div class="config-list-header">
+                        当前使用的配置：<strong id="config-active-name">-</strong>
+                    </div>
+                    <div id="config-list-container" style="flex:1; overflow-y:auto; min-height:0;"></div>
+                    <div class="ref-list-footer">
+                        <button class="ref-action-btn" onclick="addNewLLMConfig()">➕ 新建配置</button>
+                    </div>
+                </div>
+                <div class="history-preview-pane" id="config-edit-pane">
+                    <div class="modal-group">
+                        <label>配置名称</label>
+                        <input type="text" id="cfg-name" placeholder="例如：主力 DeepSeek / 备用 Qwen">
+                    </div>
+                    <div class="modal-group">
+                        <label>接口 URL (例如: https://api.openai.com/v1/chat/completions)</label>
+                        <input type="text" id="cfg-url" placeholder="必须完整包含 /v1/chat/completions">
+                    </div>
+                    <div class="modal-group">
+                        <label>API Key</label>
+                        <input type="password" id="cfg-key" placeholder="输入您的 API Key" autocomplete="new-password">
+                    </div>
+                    <div class="modal-group">
+                        <label>模型名称 (Model Name)</label>
+                        <input type="text" id="cfg-model" placeholder="例如: gpt-3.5-turbo">
+                    </div>
+                    <div class="modal-group">
+                        <label>温度参数 (Temperature: 0.0 - 2.0)</label>
+                        <input type="number" id="cfg-temp" step="0.1" min="0" max="2" value="0.7">
+                    </div>
+                    <div class="modal-button-row modal-button-row-ref">
+                        <span id="config-status-hint" class="ref-save-hint hidden-by-default">✅ 已保存</span>
+                        <button class="btn-modal btn-cancel" onclick="deleteLLMConfig()" id="btn-delete-config" title="删除此配置">🗑️ 删除</button>
+                        <button class="btn-modal btn-cancel" onclick="saveLLMConfig()" id="btn-save-config">💾 保存配置</button>
+                        <button class="btn-modal btn-confirm" onclick="activateCurrentEditingConfig()" id="btn-activate-config" disabled>⭐ 设为当前使用</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -355,9 +391,22 @@
     }
 
     // ===================== 【使用说明】 =====================
-    var usingGuide = `# 👋 欢迎使用智能写作助手 2.7
+    var usingGuide = `# 👋 欢迎使用智能写作助手
 
-这是一个运行在浏览器中的**本地 AI 写作伙伴**，您的所有数据和配置都安全地保存在自己的设备上，服务器无法访问您的任何内容。
+这是一个运行在浏览器中的**本地 AI 写作伙伴**，您的所有数据和配置都安全地保存在自己的设备上，服务器无法访问您的任何内容。兼容桌面与手机浏览器。
+
+---
+
+## 📑 功能速查
+
+| 类别 | 入口 | 用途 |
+|------|------|------|
+| ✍️ 写文章 | 顶部「👁️ 切换渲染模式」右侧的全部按钮 | 编辑/导出/导入/历史/数据管理 |
+| 🤖 用 AI | 底部「AI 编辑模式」+ 4 个工具按钮 | 续写/扩写/浓缩/润色 |
+| 📦 管数据 | 顶部「📦 数据管理」下拉 | 备份/迁移/清理 |
+| 📂 写资料 | 底部工具栏「📚 参考资料」「💡 技能」 | 上传参考/选择文风 |
+| 📖 查帮助 | 顶部「📖 帮助」 | 本说明 |
+
 
 ---
 
@@ -367,20 +416,35 @@
 > AI 功能需要连接您的大模型服务，首次使用请先完成配置。
 
 1. 点击底部工具栏的 **「⚙️ LLM配置」** 按钮
-2. 填写三项必填信息：
-   - **接口地址**：您的模型服务商提供的 API 端点（需包含 /v1/chat/completions）
+2. 在弹窗中点击「➕ 新建配置」并填写：
+   - **配置名称**：自定义（如"主力 DeepSeek"）
+   - **接口 URL**：API 端点（需包含 \`/v1/chat/completions\`）
    - **API Key**：从服务商获取的密钥
    - **模型名称**：如 \`deepseek-chat\`、\`qwen3.5-27b\` 等
-3. 点击「保存配置」，以后无需重复填写
+   - **温度参数**：0 = 严谨稳定，1 = 平衡，1.5+ = 更有创意
+3. 点击「💾 保存配置」保存；可点击「⭐ 设为当前使用」立即启用
 
-> 💡 **没有大模型？** 如果本地没有部署模型服务，可以访问 [DeepSeek](https://platform.deepseek.com) 等平台获取 API。
+> 💡 **多配置管理**：左侧列表可保存多套配置，每条都有独立的「使用」按钮一键切换。
+
+> 💡 **没有大模型？** 可访问 [DeepSeek](https://platform.deepseek.com)、[通义千问](https://dashscope.aliyun.com) 等平台获取兼容 OpenAI 格式的 API。
 
 ---
 
-### 第二步：输入或粘贴您的文章
-- 直接在编辑器中打字，或从 Word/WPS/网页中复制内容后粘贴
-- 编辑器支持 **Markdown** 语法，写完后可切换到「渲染模式」查看排版效果
-- 系统会自动保存您的每一次修改，您可以随时撤回（↶）到历史版本
+### 第二步：输入或准备文章
+您有四种方式开始：
+
+| 方式 | 适用场景 | 操作 |
+|------|----------|------|
+| 直接在编辑器中打字 | 全新创作 | — |
+| 从 Word/WPS/网页复制粘贴 | 把现有内容搬到本地 | Ctrl/Cmd+V |
+| 「📄 开始新文章 → 导入 Markdown」 | 复用已有 .md 草稿 | 选择 .md/.txt 文件 |
+| 「📄 开始新文章 → 导入 Word」 | 从 .docx 还原章节/表格/公式 | 选择 .docx 文件 |
+
+> 💡 **DOCX 导入保留**：✅ 章节标题（H1-H3）、表格（GFM 格式）、数学公式（KaTeX 渲染）
+> ⚠️ **DOCX 导入限制**：❌ Word 列表样式（转为普通段落）、❌ 图片（占位符代替）
+> 💡 公式语法：行内 \`$E=mc^2$\`、块级 \`$$\\sum_{i=1}^{n} i$$\`
+
+编辑器支持 **Markdown** 语法，写完后可切换到「👁️ 渲染模式」查看精美排版。
 
 ---
 
@@ -389,59 +453,222 @@
 
 | 模式 | 使用场景 | 操作方法 |
 |------|----------|----------|
-| **全文修改** | 修改整篇文章 | 不选中任何文字，直接在下方输入指令，如"帮我把文章改得更简洁专业"，点击提交 |
-| **局部修改** ✨ | 精修某个段落 | 选中要修改的文字，弹出悬浮工具栏，点击「✨ 润色」或「📝 扩写」等按钮 |
-| **末尾追加** ➕ | 续写文章 | 在下方下拉菜单选择「末尾追加」，AI 会顺着您的内容继续往下写 |
+| **全文修改** | 改写整篇文章 | 不选中文字，在下方输入指令后点击「提交」 |
+| **局部修改** ✨ | 精修某个段落 | **先选中**要修改的文字 → 弹出悬浮工具栏 → 点对应按钮 |
+| **末尾追加** ➕ | 续写文章 | 在 AI 编辑模式下拉中选择「末尾追加」 |
 
-> 📌 **局部修改的精髓**：先用鼠标**选中**一段文字（文字会高亮），悬浮工具栏会立刻出现，点击相应按钮即可。
+四个高频 AI 按钮在 AI 工具栏上：
+- **✍️ 续写**：基于上文继续生成（自动切到末尾追加模式）
+- **📝 扩写**：把当前内容展开，补充细节或例子
+- **⚗️ 浓缩**：提炼主要观点，编写更概括的内容
+- **✨ 润色**：纠正错别字、标点、语法，提升词汇专业度
+
+> 📌 **悬浮工具栏的精髓**：在编辑器中**选中任意文字**，底部会立即出现 \`✨ 润色 / 📝 扩写 / ⚗️ 浓缩\` 三个快捷按钮，无需打字即可触发局部改写。
 
 ---
 
-## 📖 功能一览
+## 📖 完整功能详解
 
 ### 🎨 编辑与预览
-- **渲染模式**：点击顶部「👁️ 切换渲染模式」，将 Markdown 渲染为精美排版
-- **章节大纲**：左侧栏自动提取标题，方便快速跳转到任意章节
-- **深色模式**：点击右上角「🌓 暗色」切换护眼主题
+- **渲染模式**（👁️）：将 Markdown 渲染为精美排版，支持代码高亮、表格、数学公式、Mermaid 图表
+- **章节大纲**（左侧栏）：自动提取 # / ## / ### 三级标题，点击可快速跳转
+- **深色模式**（🌓 暗色）：右上角一键切换护眼主题
+- **撤销**（↶ 撤回）：回到上一步历史版本
+- **修改范围提示**：局部修改模式下，提示词框上方会显示当前选中的文字片段
 
-### 📚 让 AI 更懂您的上下文
-- **参考资料**：上传您的内部文档（公司介绍、项目要求、产品手册等），AI 会在写作时参考这些内容
-- **写作技能**：预设了「技术方案」「工作报告」「小说故事」「口述讲稿」四种专业风格，启用后 AI 会以对应文风回应
+### 🔀 多 LLM 配置管理
+> 一个工作流往往需要切换不同模型：主力用 DeepSeek、备用用 Qwen、实验用第三方。
+
+- **新建配置**：弹窗内点击「➕ 新建配置」按钮，填好字段后保存
+- **切换当前使用**：
+  - 在左侧列表点击对应条目的「使用」按钮（快速）
+  - 或编辑表单后点击右下「⭐ 设为当前使用」（保存并激活）
+- **"✓ 当前使用"徽章**：活跃配置在列表中以渐变背景 + 主题色边框 + 绿色徽章区分
+- **删除配置**：点击「🗑️ 删除」会询问确认（删除当前使用配置会回退到第一个剩余配置）
+- **数据迁移**：配置随 \`.wat\` 备份一起跨设备同步
+
+### 📦 数据管理（备份/迁移/清理）
+> 一键打包全部数据，下载为 \`yyyyMMddHHmmss.wat\` 文件。
+
+#### 🧹 清理所有数据
+- **二次确认**后清空所有数据
+- 操作后**自动刷新页面**，相当于"恢复出厂"
+- ⚠️ 此操作不可恢复，请先导出备份！
+
+#### 📤 导出数据
+- 自动读取全部数据并导出为可迁移、可恢复的文件
+
+#### 📥 导入数据
+- 选择 \`.wat\` 文件，确认后进行导入
+- 导入数据会清空当前的数据，请谨慎操作
+
+#### 🌐 典型场景
+- **跨设备迁移**：A 电脑导出 → 通过网盘/邮箱/U 盘复制到 B 电脑 → B 电脑导入
+- **浏览器重装前**：先导出备份，重装后导入
+- **多项目隔离**：为不同写作项目各做一份备份
+
+### ⭐ 历史版本管理
+> 系统每隔约 5 秒自动存档一次，最多保留 99 个历史版本（不含 0 字数空版本）。
+
+打开「🕒 历史版本」弹窗，每个版本可：
+- **预览**：点击左侧条目，右侧 textarea 显示完整内容
+- **恢复**：点击「恢复此版本」会创建一条新版本保留旧版本
+- **⭐ 标星**：点击星星图标标记重要版本（标星版本不会被自动淘汰）
+- **🗑️ 删除**：点击垃圾桶删除无用版本
+- **查看时间**：每个版本显示保存时间（当天 \`HH:MM\`、当年 \`MM-DD HH:MM\`、跨年 \`YYYY-MM-DD\`）
+
+> 💡 标星是保护重要里程碑版本的最佳方式：即使继续编辑到 99 个上限，被标星的版本也不会被冲刷。
+
+### 🤖 AI 三种编辑模式详解
+
+#### 全文修改
+- 不选中任何文字，AI 会处理整篇文章
+- 适合：整体改写风格、修正全文错误、翻译整篇
+- 提示：上下文较长，输入 token 多，但保证全文一致
+
+#### 局部修改（推荐 ✨）
+- **必须先选中**一段文字
+- 悬浮工具栏：润色 / 扩写 / 浓缩
+- 也可在提示词框中输入更具体的指令
+- 适合：精修某段、改某段的措辞
+- 优势：节省 token、修改精准、不会改动其他段落
+
+#### 末尾追加
+- AI 不会重复已有内容，只生成新增段落
+- 适合：续写、生成下一章节
+- 注意：底部"✍️ 续写"按钮会自动切到此模式
+
+### 📚 上下文增强
+- **参考资料**（📚）：上传公司介绍、产品手册、项目要求等，AI 写作时会参考这些内容
+  - 每条资料可单独启用/停用
+  - 支持批量启用/停用
+  - 支持从 .txt / .md 文件导入
+- **写作技能**（💡）：预设四种专业文风
+  - 📐 **技术方案**：系统设计、研究报告、可行性分析
+  - 📊 **工作报告**：项目汇报、复盘、问题分析
+  - 📖 **小说故事**：文学性叙事、情境展现、潜台词
+  - 🎤 **口述讲稿**：演讲稿、口头汇报、答辩陈述
 
 ### 🔧 实用工具
-- **批量替换**：支持普通文本和正则表达式批量替换
-- **历史版本**：每次修改自动存档，可查看任意历史版本并一键恢复
-- **导出下载**：支持下载为 Markdown (.md) 或 Word (.docx) 格式
+- **批量替换**（🔍）：支持普通文本与正则表达式
+- **下载**：Markdown (.md) / Word (.docx) 两种格式
+
+### 📊 实时反馈
+- **状态灯**：未调用（灰）/ 调用中（旋转）/ 成功（绿）/ 失败（红）
+- **统计信息**：耗时、输入 token、输出 token（点击状态灯查看完整请求详情）
+- **停止按钮**：AI 生成中可随时中断
+- **自动滚动**：AI 输出时编辑器自动跟随到底部（手动滚动会停止跟随）
 
 ### 🔒 隐私与数据安全
 - ✅ 所有数据（文章、配置、参考资料）存储在**浏览器本地 IndexedDB** 中
 - ✅ 服务器仅在您提交 AI 请求时临时使用数据，不留任何存储
-- ✅ 清除浏览器缓存会删除所有本地数据，请注意备份重要内容
+- ✅ 清除浏览器缓存会**永久删除**所有本地数据，请定期使用「📦 数据管理 → 导出数据」备份
+- ✅ API Key 仅存在于本地，不会上传到任何第三方
+- ✅ \`.wat\` 文件可安全存储在本地磁盘或网盘，wat本身无加密，建议加密后再存储到网盘
+
+---
+
+## 💡 进阶使用技巧
+
+### 1. 节省 Token 的三大原则
+- 优先用**局部修改**而不是全文修改
+- **末尾追加**只发送新内容上下文
+- 一次性提供清晰的指令，比反复纠正更省
+
+### 2. 公式与图表
+- 行内公式：\`$E=mc^2$\` 渲染为 $E=mc^2$
+- 块级公式：
+  \`\`\`
+  $$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$
+  \`\`\`
+- Mermaid 图表：用 \`\`\`mermaid 代码块，切换到渲染模式查看
+
+### 3. 写作建议
+- 启用相关**写作技能**后，AI 文风会自动贴近
+- 在**参考资料**里放好事实依据，AI 输出更准确
+- 指令具体化：与其说"写得好一点"，不如说"用麦肯锡金字塔原理改写，强调结论先行"
+- **多配置轮换**：用主力配置写主线，遇到卡点切到实验配置（不同温度/不同模型）取新思路
+
+### 4. 备份习惯
+- 每次重要写作里程碑（如完成一版）→ 「📦 数据管理 → 导出数据」
+- 文件名含时间戳，方便按时间排序管理多个备份
+- 重要文章可单独复制 Markdown 文本到外部编辑器二次保险
 
 ---
 
 ## ❓ 常见问题
 
 **Q：为什么 AI 没有反应？**
-请检查：① 是否已配置 LLM 接口；② API Key 是否有效；③ 接口地址是否正确（需包含完整路径）；④ 网络是否通畅。
+请检查：① 是否已配置 LLM 接口并设为"当前使用"；② API Key 是否有效；③ 接口 URL 是否正确（需包含 \`/v1/chat/completions\`）；④ 模型服务商是否支持流式响应；⑤ 网络是否通畅。点击状态灯可查看完整错误信息。
+
+**Q：悬浮工具栏在哪里？**
+在编辑器中**先选中**一段文字，底部会出现 3 个按钮（润色、扩写、浓缩），无需打字即可触发局部改写。
 
 **Q：文章会丢失吗？**
-不会。所有内容自动保存到浏览器本地，每隔约 5 秒自动存档一次。同时在「🕒 历史版本」中可以找到所有存档。
+不会丢失——但**仅在本地浏览器中**。系统每隔约 5 秒自动存档一次，最多保留 99 个版本（不含 0 字数空版本）。建议每周用「📦 数据管理 → 导出数据」做一次完整备份。
+
+**Q：如何跨设备使用同一份文章？**
+1. 在 A 设备「📦 数据管理 → 导出数据」，得到 \`.wat\` 文件
+2. 通过网盘/邮箱/U 盘把 \`.wat\` 拷到 B 设备
+3. 在 B 设备「📦 数据管理 → 导入数据」选择该文件
+4. 二次确认后所有数据（历史/配置/参考资料/技能/对话历史）一并迁移完成
+
+**Q：导入 Word 后列表项乱了怎么办？**
+当前版本 mammoth 不识别 Word 的列表样式，会转为普通段落。建议导入后用「🔍 批量替换」+ 正则表达式批量添加 \`-\` 前缀，或手动整理。
+
+**Q：数学公式显示为代码而不是渲染？**
+确认 \`js/katex.min.js\` 与 \`js/auto-render.min.js\` 已加载。DOCX 导入的公式自动转为 \`$...$\` 格式，渲染模式会自动用 KaTeX 绘制。
+
+**Q：可以保留旧的标星版本不被淘汰吗？**
+可以。⭐ 标星的版本在历史达到 99 上限时不会被自动淘汰。如果所有 99 个版本都标星了，新保存的版本会被立即淘汰（无新空间）。
+
+**Q：可以同时在多个设备上编辑吗？**
+不可以实时同步（数据完全本地）。但通过「📦 数据管理 → 导出/导入」可在设备间手动迁移——每次导入会**覆盖**目标设备所有数据。
+
+**Q：如何彻底删除所有数据？**
+点击「📦 数据管理 → 🧹 清理所有数据」，二次确认后清空所有数据并刷新页面。
+
+**Q：API Key 安全吗？**
+存储在本地浏览器缓存，不上传任何服务器。但请勿在公共电脑保存 API Key。导出 \`.wat\` 文件中也包含 API Key，请妥善保管备份文件。
 
 **Q：如何让 AI 的输出更符合我的需求？**
+- 在「⚙️ LLM配置」中建立多套配置，按场景切换
 - 在「💡 写作技能」中启用对应的专业技能
 - 在「📚 参考资料」中上传相关背景材料
-- 在指令中尽量描述清楚您的写作目标，如"用正式的商业报告语气改写"
+- 在指令中尽量描述清楚您的写作目标，避免"写好一点"这种模糊表达
 `;
     // ====================================================================
 
     // --- 核心状态 ---
     let history = [];
+    let historyTimes = [];
+    let historyStars = [];
     let historyIndex = -1;
     let isPreviewMode = false;
 
-    let appConfig = { url: 'http://127.0.0.1:8081/llm/v1/chat/completions', key: 'sk-xxxxxx...', model: 'qwen3.5-27b', temp: 0.7 };
+    // 多配置结构：llmConfigs 为所有配置，currentConfigId 指向当前激活的
+    // appConfig 作为代理对象，运行时始终指向 currentConfigId 对应的配置
+    const defaultConfig = { url: 'http://127.0.0.1:8081/llm/v1/chat/completions', key: 'sk-xxxxxx...', model: 'qwen3.5-27b', temp: 0.7 };
+    let llmConfigs = [];
+    let currentConfigId = '';
+    const appConfig = { ...defaultConfig };  // 代理对象，写入操作会被拦截同步到 llmConfigs
     let refDataList = [];
+
+    // 将 appConfig 同步为当前激活配置的引用
+    function syncAppConfig() {
+        const active = llmConfigs.find(c => c.id === currentConfigId) || llmConfigs[0];
+        if (active) {
+            appConfig.url = active.url;
+            appConfig.key = active.key;
+            appConfig.model = active.model;
+            appConfig.temp = active.temp;
+        } else {
+            appConfig.url = defaultConfig.url;
+            appConfig.key = defaultConfig.key;
+            appConfig.model = defaultConfig.model;
+            appConfig.temp = defaultConfig.temp;
+        }
+    }
     let currentRefIndex = -1;
 
     let techniques = [];
@@ -452,7 +679,7 @@
 
 ## Profile:
 - author: AI Writing Assistant System
-- version: 2.7
+- version: 2.8
 - language: 中文
 - description: 你是一个具备深厚文字功底的专业写作助手。你的核心使命是严格遵循用户的各项标签指令，高效、精准地进行文本处理。
 
@@ -509,6 +736,15 @@
             const tx = dbInstance.transaction('store', 'readwrite');
             const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(val))));
             tx.objectStore('store').put(encoded, key);
+            tx.oncomplete = () => resolve();
+        });
+    }
+
+    function dbDelete(key) {
+        return new Promise((resolve) => {
+            if (!dbInstance) return resolve();
+            const tx = dbInstance.transaction('store', 'readwrite');
+            tx.objectStore('store').delete(key);
             tx.oncomplete = () => resolve();
         });
     }
@@ -616,12 +852,30 @@
 
         await initDB();
         const savedHistory = await dbGet('writer_history');
+        const savedHistoryTimes = await dbGet('writer_history_times');
+        const savedHistoryStars = await dbGet('writer_history_stars');
 
         if (savedHistory && savedHistory.length > 0) {
             history = savedHistory;
+            // 兼容旧数据：没有时间戳时填充占位时间（按 1 分钟间隔倒推）
+            if (savedHistoryTimes && savedHistoryTimes.length === history.length) {
+                historyTimes = savedHistoryTimes;
+            } else {
+                const now = Date.now();
+                historyTimes = history.map((_, i) => now - (history.length - 1 - i) * 60000);
+            }
+            // 兼容旧数据：没有星标数据时全部初始化为 false
+            if (savedHistoryStars && savedHistoryStars.length === history.length) {
+                historyStars = savedHistoryStars;
+            } else {
+                historyStars = new Array(history.length).fill(false);
+                dbSet('writer_history_stars', historyStars);
+            }
             historyIndex = history.length - 1;
             editor.value = history[historyIndex] || "";
         } else {
+            historyTimes = [];
+            historyStars = [];
             saveState("");
         }
         await loadLocalData();
@@ -878,12 +1132,34 @@ img { max-width: 100%; }
     }
 
     function saveState(text) {
+        // 不保存 0 字数的版本（首次初始化除外）
+        const wordMatches = text.match(/[一-龥]|[a-zA-Z0-9]+/g);
+        const wordCount = wordMatches ? wordMatches.length : 0;
+        if (wordCount === 0 && history.length > 0) return;
         if (historyIndex >= 0 && history[historyIndex] === text) return;
         history = history.slice(0, historyIndex + 1);
+        historyTimes = historyTimes.slice(0, historyIndex + 1);
+        historyStars = historyStars.slice(0, historyIndex + 1);
         history.push(text);
-        if (history.length > 30) history.shift();
+        historyTimes.push(Date.now());
+        historyStars.push(false);
+        // 推入后 historyIndex 必然指向新的末尾
         historyIndex = history.length - 1;
+        // 超限时仅淘汰最早的非星标版本
+        while (history.length > 99) {
+            const evictIdx = historyStars.findIndex(s => !s);
+            if (evictIdx === -1) {
+                // 全部都是星标版本：保留所有，不淘汰
+                break;
+            }
+            history.splice(evictIdx, 1);
+            historyTimes.splice(evictIdx, 1);
+            historyStars.splice(evictIdx, 1);
+            if (historyIndex > evictIdx) historyIndex--;
+        }
         dbSet('writer_history', history);
+        dbSet('writer_history_times', historyTimes);
+        dbSet('writer_history_stars', historyStars);
         const now = new Date();
         saveTimeEl.innerText = `最后保存: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     }
@@ -908,8 +1184,399 @@ img { max-width: 100%; }
         }
     }
 
+    // 动态创建 input[type=file] 触发文件选择，避免每次都要在 DOM 中维护隐藏 input
+    function triggerFileSelect(accept, onFile) {
+        const inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = accept;
+        inp.style.display = 'none';
+        inp.onchange = e => {
+            const file = e.target.files[0];
+            inp.value = '';
+            if (file) onFile(file);
+        };
+        document.body.appendChild(inp);
+        inp.click();
+        // 部分浏览器 click() 后需要清理
+        setTimeout(() => { if (inp.parentNode) inp.parentNode.removeChild(inp); }, 1000);
+    }
+
+    async function importMD() {
+        triggerFileSelect('.md,.markdown,.txt,text/markdown,text/plain', async (file) => {
+            if (file.size > 5 * 1024 * 1024) {
+                const ok = await showConfirm(`文件较大（${(file.size / 1024 / 1024).toFixed(1)} MB），导入可能需要一些时间，是否继续？`);
+                if (!ok) return;
+            }
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const ok = await showConfirm(`将用 "${file.name}" 替换当前文章内容（可撤回），继续？`);
+                if (!ok) return;
+                editor.value = ev.target.result;
+                saveState(editor.value);
+                updateUI();
+                await showAlert(`Markdown 文件导入成功（${(file.size / 1024).toFixed(1)} KB）！`);
+            };
+            reader.onerror = () => showAlert('文件读取失败：' + reader.error);
+            reader.readAsText(file, 'UTF-8');
+        });
+    }
+
+    // ===================== 【OMML → LaTeX 转换器】 =====================
+    // 从 docx 的 word/document.xml 中提取所有 <m:oMath> 元素，转为 LaTeX 字符串
+    // 覆盖率约 60-70%（分数/上下标/根号/矩阵/求和等常见语法）
+    async function extractAndConvertOMML(arrayBuffer) {
+        if (typeof JSZip === 'undefined') return [];
+        try {
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            const docXmlFile = zip.file('word/document.xml');
+            if (!docXmlFile) return [];
+            const docXml = await docXmlFile.async('string');
+            const doc = new DOMParser().parseFromString(docXml, 'text/xml');
+            // 命名空间通配符：捕获 <m:oMath> 等带前缀的元素
+            const omaths = doc.getElementsByTagNameNS('*', 'oMath');
+            return Array.from(omaths).map(el => ommlToLatex(el));
+        } catch (e) {
+            console.warn('OMML extraction failed:', e);
+            return [];
+        }
+    }
+
+    // 递归将 OMML 元素转为 LaTeX
+    function ommlToLatex(el) {
+        if (!el) return '';
+        // 去掉命名空间前缀（m:oMath → oMath）
+        const tag = el.localName || (el.nodeName || '').split(':').pop();
+        if (!tag) return '';
+
+        switch (tag) {
+            case 'oMath':
+            case 'oMathPara':
+            case 'oMathParaPr':
+            case 'oMathPr':
+            case 'mr': // matrix row
+                return childrenToLatex(Array.from(el.children));
+
+            case 'e': // element container
+            case 'num': // fraction numerator
+            case 'den': // fraction denominator
+            case 'deg': // radical degree
+            case 'sup': // superscript
+            case 'sub': // subscript
+                return childrenToLatex(Array.from(el.children));
+
+            case 'f': // fraction m:f
+                return `\\frac{${ommlToLatex(firstChild(el, 'num'))}}{${ommlToLatex(firstChild(el, 'den'))}}`;
+
+            case 'sSup': // superscript
+                return `${wrapBase(ommlToLatex(firstChild(el, 'e')))}^{${ommlToLatex(firstChild(el, 'sup'))}}`;
+
+            case 'sSub': // subscript
+                return `${wrapBase(ommlToLatex(firstChild(el, 'e')))}_{${ommlToLatex(firstChild(el, 'sub'))}}`;
+
+            case 'sSubSup': { // sub+sup
+                const e = ommlToLatex(firstChild(el, 'e'));
+                const sub = ommlToLatex(firstChild(el, 'sub'));
+                const sup = ommlToLatex(firstChild(el, 'sup'));
+                return `${wrapBase(e)}_{${sub}}^{${sup}}`;
+            }
+
+            case 'sPre': // pre-script (left superscript/subscript)
+                return `\\prescript{${ommlToLatex(firstChild(el, 'sub'))}}{${ommlToLatex(firstChild(el, 'sup'))}}{${ommlToLatex(firstChild(el, 'e'))}}`;
+
+            case 'rad': { // radical m:rad
+                const deg = firstChild(el, 'deg');
+                const degHide = el.getElementsByTagNameNS('*', 'degHide');
+                const radicand = ommlToLatex(firstChild(el, 'e'));
+                if (deg && degHide.length === 0) {
+                    return `\\sqrt[${ommlToLatex(deg)}]{${radicand}}`;
+                }
+                return `\\sqrt{${radicand}}`;
+            }
+
+            case 'nary': { // n-ary operator (∑ ∏ ∫)
+                const chrEl = el.getElementsByTagNameNS('*', 'chr')[0];
+                const chrVal = chrEl ? (chrEl.getAttribute('m:val') || chrEl.textContent || '') : '';
+                const op = mapNaryChar(chrVal);
+                const sub = firstChild(el, 'sub');
+                const sup = firstChild(el, 'sup');
+                const expr = ommlToLatex(firstChild(el, 'e'));
+                let limits = '';
+                if (sub) limits += `_{${ommlToLatex(sub)}}`;
+                if (sup) limits += `^{${ommlToLatex(sup)}}`;
+                return `${op}${limits}${expr}`;
+            }
+
+            case 'eqArr': { // equation array → cases 环境
+                const rows = Array.from(el.children).filter(c => (c.localName || '').startsWith('e'));
+                const body = rows.map(r => ommlToLatex(r)).join(' \\\\ ');
+                return `\\begin{cases} ${body} \\end{cases}`;
+            }
+
+            case 'm': { // matrix m:m
+                const rows = Array.from(el.getElementsByTagNameNS('*', 'mr'));
+                if (rows.length === 0) return '';
+                const body = rows.map(r =>
+                    Array.from(r.children).map(c => ommlToLatex(c)).join(' & ')
+                ).join(' \\\\ ');
+                return `\\begin{matrix} ${body} \\end{matrix}`;
+            }
+
+            case 'r': // run container
+            case 's': // plain text run
+                return textOf(el);
+
+            case 't': // text m:t
+                return el.textContent || '';
+
+            case 'd': { // delimiter m:d (括号/绝对值等)
+                const dPr = el.getElementsByTagNameNS('*', 'dPr')[0];
+                let left = '\\left(', right = '\\right)';
+                if (dPr) {
+                    const beg = dPr.getElementsByTagNameNS('*', 'begChr')[0];
+                    const end = dPr.getElementsByTagNameNS('*', 'endChr')[0];
+                    if (beg) left = '\\left' + (beg.getAttribute('m:val') || '(');
+                    if (end) right = '\\right' + (end.getAttribute('m:val') || ')');
+                }
+                return `${left}${ommlToLatex(firstChild(el, 'e'))}${right}`;
+            }
+
+            case 'bar': { // bar m:bar
+                const barPr = el.getElementsByTagNameNS('*', 'barPr')[0];
+                const pos = barPr ? (barPr.getElementsByTagNameNS('*', 'pos')[0]?.getAttribute('m:val') || 'bot') : 'bot';
+                const inner = ommlToLatex(firstChild(el, 'e'));
+                return pos === 'top' ? `\\overline{${inner}}` : `\\underline{${inner}}`;
+            }
+
+            case 'acc': // accent m:acc (hat, tilde...)
+                return `\\hat{${ommlToLatex(firstChild(el, 'e'))}}`;
+
+            default:
+                // 降级：递归子元素
+                return childrenToLatex(Array.from(el.children)) || textOf(el);
+        }
+    }
+
+    // 包装基底：含二元运算符或区间的基底用花括号包裹（KaTeX 必需）
+    function wrapBase(base) {
+        if (!base) return '{}';
+        // 含空格、加减乘除、= 等的基底需要 {}
+        if (/[\s+\-*/=<>±∓×÷·]/i.test(base) && !base.startsWith('{')) {
+            return `{${base}}`;
+        }
+        return base;
+    }
+
+    function mapNaryChar(c) {
+        const ch = (c || '').trim();
+        if (!ch) return '\\sum';
+        // 常见 n-ary 字符映射
+        if (ch === '∑' || /sum/i.test(ch)) return '\\sum';
+        if (ch === '∏' || /prod/i.test(ch)) return '\\prod';
+        if (ch === '∫' || ch === '∬' || /int/i.test(ch)) return '\\int';
+        if (ch === '∮' || /oint/i.test(ch)) return '\\oint';
+        if (ch === '∐' || /coprod/i.test(ch)) return '\\coprod';
+        if (ch === '⋃' || /union/i.test(ch)) return '\\bigcup';
+        if (ch === '⋂' || /inter/i.test(ch)) return '\\bigcap';
+        return `\\mathrm{${ch}}`;
+    }
+
+    function firstChild(parent, localName) {
+        if (!parent) return null;
+        const children = Array.from(parent.children);
+        return children.find(c => (c.localName || '').toLowerCase() === localName.toLowerCase()) || null;
+    }
+
+    function childrenToLatex(children) {
+        return children.map(c => ommlToLatex(c)).join('');
+    }
+
+    function textOf(el) {
+        // 仅提取 m:t 子元素文本（避免误抓容器文字）
+        const ts = el.getElementsByTagNameNS('*', 't');
+        return Array.from(ts).map(t => t.textContent || '').join('');
+    }
+
+    // 把 mammoth 输出的 HTML 中的 <m:oMath> 块替换为 $...$ 包裹的 LaTeX
+    function injectLatexIntoHtml(html, ommlList) {
+        if (!ommlList || ommlList.length === 0) return html;
+        let i = 0;
+        // mammoth 输出时可能保留 m: 前缀，也可能不带（取决于解析器）
+        return html.replace(/<(?:\w+:)?oMath\b[^>]*>[\s\S]*?<\/(?:\w+:)?oMath>/g, () => {
+            const latex = ommlList[i++] || '';
+            return `$${latex}$`;
+        });
+    }
+    // ====================================================================
+
+    async function importDocx() {
+        if (typeof mammoth === 'undefined') {
+            await showAlert('mammoth.js 未加载，无法解析 DOCX 文件。请检查 js/mammoth.browser.min.js 是否存在。');
+            return;
+        }
+        triggerFileSelect('.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document', async (file) => {
+            if (file.size > 10 * 1024 * 1024) {
+                const ok = await showConfirm(`文件较大（${(file.size / 1024 / 1024).toFixed(1)} MB），转换可能需要一些时间，是否继续？`);
+                if (!ok) return;
+            }
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                // 1. mammoth DOCX → HTML
+                const result = await mammoth.convertToHtml(
+                    { arrayBuffer },
+                    {
+                        convertImage: mammoth.images.imgElement(() => ({ src: '' })),
+                        styleMap: [
+                            "p[style-name='Heading 1'] => h1:fresh",
+                            "p[style-name='Heading 2'] => h2:fresh",
+                            "p[style-name='Heading 3'] => h3:fresh",
+                            "p[style-name='Heading 4'] => h4:fresh",
+                            "p[style-name='Title'] => h1:fresh",
+                            "p[style-name='Subtitle'] => h2:fresh"
+                        ]
+                    }
+                );
+                let html = result.value;
+
+                // 2. 抽取 OMML 公式并定位到原 docx 段落索引
+                const ommlInfo = await extractOmmlWithPositions(arrayBuffer);
+                html = injectLatexByPosition(html, ommlInfo);
+
+                // 3. HTML → Markdown（turndown + 自定义规则）
+                if (typeof TurndownService === 'undefined') {
+                    await showAlert('turndown.js 未加载，无法转换为 Markdown。');
+                    return;
+                }
+                const td = new TurndownService({
+                    headingStyle: 'atx',
+                    codeBlockStyle: 'fenced',
+                    bulletListMarker: '-',
+                    emDelimiter: '*',
+                    strongDelimiter: '**'
+                });
+                // 修复 mammoth 输出表格的转换（默认规则不处理 p 包裹的 td）
+                td.addRule('tableCell', {
+                    filter: ['td', 'th'],
+                    replacement: (content, node) => {
+                        const text = node.textContent.replace(/\n/g, ' ').trim();
+                        const isHeader = node.nodeName === 'TH';
+                        return isHeader ? ` ${text} |` : ` ${text} |`;
+                    }
+                });
+                td.addRule('tableRow', {
+                    filter: 'tr',
+                    replacement: (content, node) => {
+                        const cells = Array.from(node.querySelectorAll('td, th'));
+                        const isHeader = cells.length > 0 && cells[0].nodeName === 'TH';
+                        const row = cells.map(c => c.textContent.replace(/\n/g, ' ').trim()).join(' | ');
+                        let result = `\n| ${row} |`;
+                        if (isHeader) {
+                            result += `\n| ${cells.map(() => '---').join(' | ')} |`;
+                        }
+                        return result;
+                    }
+                });
+                td.addRule('table', {
+                    filter: 'table',
+                    replacement: (content) => `\n${content}\n`
+                });
+                // 删除线
+                td.addRule('strikethrough', {
+                    filter: ['del', 's', 'strike'],
+                    replacement: (content) => `~~${content}~~`
+                });
+                // 公式占位符：直接输出 LaTeX，不转义反斜杠
+                td.addRule('mathPlaceholder', {
+                    filter: (node) => node.classList && node.classList.contains('math-placeholder'),
+                    replacement: (content, node) => node.textContent || ''
+                });
+                const md = td.turndown(html);
+
+                // 4. 确认覆盖并应用
+                const msg = `将用 "${file.name}" 的转换结果替换当前内容：\n` +
+                            `• 公式：${ommlInfo.total} 个（尽力转 LaTeX）\n` +
+                            `• mammoth 警告：${result.messages.length} 个\n\n` +
+                            `注：DOCX 样式会被转为 Markdown，字体/颜色/图片/页眉页脚将丢失。是否继续？`;
+                const ok = await showConfirm(msg);
+                if (!ok) return;
+
+                editor.value = md;
+                saveState(editor.value);
+                updateUI();
+                await showAlert(`DOCX 导入完成！\n共转换 ${ommlInfo.total} 个公式，${result.messages.length} 个警告。`);
+            } catch (err) {
+                console.error('DOCX import error:', err);
+                await showAlert('DOCX 导入失败：' + (err.message || err));
+            }
+        });
+    }
+
+    // 从 docx 的 word/document.xml 提取所有 OMML 公式，
+    // 同时记录每个公式所在的 docx 段落索引（用于后续注入位置匹配）
+    async function extractOmmlWithPositions(arrayBuffer) {
+        if (typeof JSZip === 'undefined') return { total: 0, byParagraph: [] };
+        try {
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            const docXmlFile = zip.file('word/document.xml');
+            if (!docXmlFile) return { total: 0, byParagraph: [] };
+            const docXml = await docXmlFile.async('string');
+            const doc = new DOMParser().parseFromString(docXml, 'text/xml');
+            const body = doc.getElementsByTagNameNS('*', 'body')[0];
+            if (!body) return { total: 0, byParagraph: [] };
+            const paragraphs = Array.from(body.getElementsByTagNameNS('*', 'p'));
+            const byParagraph = paragraphs.map(p => {
+                const omaths = Array.from(p.getElementsByTagNameNS('*', 'oMath'));
+                return omaths.map(m => ommlToLatex(m));
+            });
+            const total = byParagraph.reduce((s, arr) => s + arr.length, 0);
+            return { total, byParagraph };
+        } catch (e) {
+            console.warn('OMML extraction failed:', e);
+            return { total: 0, byParagraph: [] };
+        }
+    }
+
+    // 根据 docx 段落索引，把 LaTeX 注入 mammoth 输出的对应 HTML 元素末尾
+    // mammoth 会剥离 OMML，所以对应段落输出为空或只有非公式文本
+    function injectLatexByPosition(html, ommlInfo) {
+        if (!ommlInfo || ommlInfo.total === 0) return html;
+        const parser = new DOMParser();
+        const wrapped = `<div id="__docx_root__">${html}</div>`;
+        const doc = parser.parseFromString(wrapped, 'text/html');
+        const root = doc.getElementById('__docx_root__');
+        // mammoth 输出的块级元素（按文档顺序）
+        const blocks = Array.from(root.children);
+        let pIdx = 0;
+        let injected = 0;
+        for (const block of blocks) {
+            const tag = (block.tagName || '').toLowerCase();
+            if (tag === 'table') continue; // 表格内不注入
+            const omathsForThisP = ommlInfo.byParagraph[pIdx] || [];
+            if (omathsForThisP.length > 0) {
+                for (const latex of omathsForThisP) {
+                    const span = doc.createElement('span');
+                    span.className = 'math-placeholder';
+                    span.textContent = `$${latex}$`;
+                    block.appendChild(span);
+                    injected++;
+                }
+            }
+            pIdx++;
+        }
+        // 序列化回 HTML
+        return root.innerHTML;
+    }
+
+    // === 数据管理：清理 / 导出 / 导入 ===
+    const WAT_MAGIC = 'WAT!';
+    const WAT_VERSION = 1;
+    const WAT_DATA_KEYS = [
+        'writer_history', 'writer_history_times', 'writer_history_stars',
+        'writer_llm_config', 'writer_llm_configs', 'writer_llm_current_id',
+        'writer_ref_data_list', 'writer_techniques', 'writer_interaction_history'
+    ];
+
     async function clearAllData() {
-        const ok1 = await showConfirm('确定要清理所有浏览器缓存数据吗？\n\n这将删除：\n- 所有文章历史版本\n- LLM 接口配置\n- 所有参考资料\n- 所有写作技能设置\n\n此操作不可恢复！');
+        const ok1 = await showConfirm('确定要清理所有浏览器缓存数据吗？\n\n这将删除：\n- 所有文章历史版本\n- LLM 接口配置\n- 所有参考资料\n- 所有写作技能设置\n- AI 对话历史\n\n此操作不可恢复！');
         if (!ok1) return;
 
         const ok2 = await showConfirm('再次确认：所有数据将被永久删除，是否继续？');
@@ -920,10 +1587,8 @@ img { max-width: 100%; }
         return new Promise((resolve, reject) => {
             const tx = dbInstance.transaction('store', 'readwrite');
             const store = tx.objectStore('store');
-            let pending = 4;
-            const keys = ['writer_history', 'writer_llm_config', 'writer_ref_data_list', 'writer_techniques'];
-
-            keys.forEach(key => {
+            let pending = WAT_DATA_KEYS.length;
+            WAT_DATA_KEYS.forEach(key => {
                 const req = store.delete(key);
                 req.onsuccess = () => { pending--; if (pending === 0) resolve(); };
                 req.onerror = () => { pending--; if (pending === 0) resolve(); };
@@ -940,6 +1605,198 @@ img { max-width: 100%; }
         });
     }
 
+    // 读取所有 IndexedDB 键值对（同步转 Promise）
+    function dumpAllIndexedDB() {
+        if (!dbInstance) return Promise.resolve({});
+        return new Promise((resolve, reject) => {
+            const tx = dbInstance.transaction('store', 'readonly');
+            const store = tx.objectStore('store');
+            const req = store.openCursor();
+            const result = {};
+            req.onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    try {
+                        const raw = cursor.value;
+                        // 旧版存储的是 base64 编码字符串，需解码
+                        if (typeof raw === 'string') {
+                            result[cursor.key] = JSON.parse(decodeURIComponent(escape(atob(raw))));
+                        } else {
+                            result[cursor.key] = raw;
+                        }
+                    } catch (e) {
+                        result[cursor.key] = cursor.value;
+                    }
+                    cursor.continue();
+                } else {
+                    resolve(result);
+                }
+            };
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    function dumpAllLocalStorage() {
+        const out = {};
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                out[k] = localStorage.getItem(k);
+            }
+        } catch (e) {}
+        return out;
+    }
+
+    async function exportAllData() {
+        try {
+            if (!dbInstance) await initDB();
+            const [idbDump, lsDump] = await Promise.all([dumpAllIndexedDB(), dumpAllLocalStorage()]);
+            const payload = {
+                magic: WAT_MAGIC,
+                version: WAT_VERSION,
+                exportedAt: Date.now(),
+                appVersion: '2.8',
+                data: { indexedDB: idbDump, localStorage: lsDump }
+            };
+            const jsonStr = JSON.stringify(payload);
+            const jsonBytes = new TextEncoder().encode(jsonStr);
+            // gzip 压缩
+            const compressed = await new Response(
+                new Blob([jsonBytes]).stream().pipeThrough(new CompressionStream('gzip'))
+            ).arrayBuffer();
+            const compressedBytes = new Uint8Array(compressed);
+            // 拼接文件头：4字节魔数 + 1字节版本 + 7字节保留 + gzip数据
+            const finalBytes = new Uint8Array(12 + compressedBytes.length);
+            finalBytes[0] = 0x57; // W
+            finalBytes[1] = 0x41; // A
+            finalBytes[2] = 0x54; // T
+            finalBytes[3] = 0x21; // !
+            finalBytes[4] = WAT_VERSION;
+            // 5-11 保留为 0
+            finalBytes.set(compressedBytes, 12);
+
+            const now = new Date();
+            const pad = n => n.toString().padStart(2, '0');
+            const timeStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+            const filename = `${timeStr}.wat`;
+
+            // 统计摘要
+            const idbCount = Object.keys(idbDump).length;
+            const lsCount = Object.keys(lsDump).length;
+            const origSize = jsonBytes.length;
+            const compSize = compressedBytes.length;
+            const ratio = ((1 - compSize / origSize) * 100).toFixed(1);
+
+            const blob = new Blob([finalBytes], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            await showAlert(`✅ 数据导出成功！\n\n文件名：${filename}\n压缩前：${(origSize / 1024).toFixed(1)} KB\n压缩后：${(compSize / 1024).toFixed(1)} KB\n压缩率：${ratio}%\nIDB 键：${idbCount} 个\nlocalStorage 键：${lsCount} 个`);
+        } catch (err) {
+            await showAlert('导出失败：' + (err.message || err));
+        }
+    }
+
+    async function importData() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.wat,application/octet-stream';
+        input.style.display = 'none';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            input.remove();
+            if (!file) return;
+            try {
+                const buf = await file.arrayBuffer();
+                const compressed = new Uint8Array(buf);
+
+                // 先解压前 8 字节做魔数与版本校验
+                if (compressed.length < 12) {
+                    await showAlert('文件格式错误：文件过小');
+                    return;
+                }
+                const magic = String.fromCharCode(compressed[0], compressed[1], compressed[2], compressed[3]);
+                if (magic !== WAT_MAGIC) {
+                    await showAlert(`文件格式错误：魔数不匹配（期望 "${WAT_MAGIC}"，实际 "${magic}"）`);
+                    return;
+                }
+                const version = compressed[4];
+                if (version !== WAT_VERSION) {
+                    await showAlert(`版本不匹配：备份版本 ${version}，当前应用版本 ${WAT_VERSION}`);
+                    return;
+                }
+
+                // gzip 解压
+                const decompressed = await new Response(
+                    new Blob([compressed.slice(12)]).stream().pipeThrough(new DecompressionStream('gzip'))
+                ).arrayBuffer();
+                const jsonStr = new TextDecoder().decode(decompressed);
+                const payload = JSON.parse(jsonStr);
+
+                if (!payload.data || !payload.data.indexedDB) {
+                    await showAlert('文件格式错误：缺少数据节点');
+                    return;
+                }
+
+                // 数据摘要
+                const idbCount = Object.keys(payload.data.indexedDB).length;
+                const lsCount = Object.keys(payload.data.localStorage || {}).length;
+                const exportedAt = new Date(payload.exportedAt || 0).toLocaleString();
+
+                // 三次确认
+                const ok1 = await showConfirm(`检测到备份文件：\n导出时间：${exportedAt}\n应用版本：${payload.appVersion || '未知'}\nIDB 键：${idbCount} 个\nlocalStorage 键：${lsCount} 个\n\n⚠️ 导入将清空当前所有数据并替换为备份内容！\n是否继续？`);
+                if (!ok1) return;
+                const ok2 = await showConfirm('最后确认：当前所有数据将被备份内容覆盖，此操作不可恢复！\n确定要导入吗？');
+                if (!ok2) return;
+
+                // 清空 + 写入
+                if (!dbInstance) await initDB();
+                await new Promise((resolve, reject) => {
+                    const tx = dbInstance.transaction('store', 'readwrite');
+                    const store = tx.objectStore('store');
+                    const entries = Object.entries(payload.data.indexedDB);
+                    let pending = entries.length + 1;
+                    // 写入所有键
+                    entries.forEach(([k, v]) => {
+                        const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(v))));
+                        const req = store.put(encoded, k);
+                        req.onsuccess = () => { pending--; if (pending === 1) resolve(); };
+                        req.onerror = () => { pending--; if (pending === 1) resolve(); };
+                    });
+                    // 至少完成一次以触发 oncomplete
+                    if (entries.length === 0) {
+                        tx.oncomplete = () => resolve();
+                    } else {
+                        tx.oncomplete = () => { if (pending === 1) resolve(); };
+                    }
+                });
+
+                // 写 localStorage
+                try {
+                    localStorage.clear();
+                    const ls = payload.data.localStorage || {};
+                    for (const [k, v] of Object.entries(ls)) {
+                        localStorage.setItem(k, v);
+                    }
+                } catch (e) {}
+
+                await showAlert('✅ 导入成功！页面即将刷新。');
+                setTimeout(() => location.reload(), 500);
+            } catch (err) {
+                await showAlert('导入失败：' + (err.message || err));
+            }
+        };
+        document.body.appendChild(input);
+        input.click();
+        setTimeout(() => { if (input.parentNode) input.parentNode.removeChild(input); }, 60000);
+    }
+
     function renderHistoryList() {
         const container = document.getElementById('history-list-container');
         container.innerHTML = '';
@@ -947,7 +1804,7 @@ img { max-width: 100%; }
         const btnRestore = document.getElementById('btn-restore-history');
         btnRestore.disabled = true;
         btnRestore.innerText = '恢复此版本';
-        currentSelectedHistoryIndex = -1;
+        // 不再重置 currentSelectedHistoryIndex，以保留标星/删除前用户查看的位置
         if (history.length === 0) {
             container.innerHTML = '<p style="color:#aaa; text-align:center; padding: 20px;">暂无历史记录</p>';
             return;
@@ -962,12 +1819,118 @@ img { max-width: 100%; }
             item.id = 'history-item-' + i;
             const isCurrent = i === historyIndex;
             const titleStr = isCurrent ? `版本 ${i + 1} (当前)` : `版本 ${i + 1}`;
-            item.innerHTML = `<div class="history-info"><div class="history-title" style="${isCurrent ? 'color: var(--btn-primary);' : ''}">${titleStr}</div><div style="font-size:12px; color:#888;">字数: ${wordCount}</div><div class="history-preview" title="${text}">${previewText}</div></div>`;
+            const isStarred = !!historyStars[i];
+
+            const info = document.createElement('div');
+            info.className = 'history-info';
+            const titleRow = document.createElement('div');
+            titleRow.className = 'history-info-row';
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'history-title';
+            if (isCurrent) titleDiv.style.color = 'var(--btn-primary)';
+            titleDiv.innerText = titleStr;
+            titleRow.appendChild(titleDiv);
+
+            const actions = document.createElement('div');
+            actions.className = 'history-item-actions';
+            const starBtn = document.createElement('button');
+            starBtn.className = 'history-star-btn' + (isStarred ? ' starred' : '');
+            starBtn.innerHTML = isStarred ? '⭐' : '☆';
+            starBtn.title = isStarred ? '取消星标' : '标星（防止被自动淘汰）';
+            starBtn.onclick = (e) => { e.stopPropagation(); toggleHistoryStar(i); };
+            const delBtn = document.createElement('button');
+            delBtn.className = 'history-delete-btn';
+            delBtn.innerHTML = '🗑️';
+            delBtn.title = '删除此版本';
+            delBtn.onclick = (e) => { e.stopPropagation(); deleteHistoryItem(i); };
+            actions.appendChild(starBtn);
+            actions.appendChild(delBtn);
+            titleRow.appendChild(actions);
+            info.appendChild(titleRow);
+
+            const meta = document.createElement('div');
+            meta.style.cssText = 'font-size:12px; color:#888; display:flex; justify-content:space-between; gap:8px;';
+            const wcSpan = document.createElement('span');
+            wcSpan.innerText = `字数: ${wordCount}`;
+            const timeSpan = document.createElement('span');
+            timeSpan.innerText = formatHistoryTime(historyTimes[i]);
+            timeSpan.title = new Date(historyTimes[i] || 0).toLocaleString();
+            meta.appendChild(wcSpan);
+            meta.appendChild(timeSpan);
+            info.appendChild(meta);
+
+            const preview = document.createElement('div');
+            preview.className = 'history-preview';
+            preview.title = text;
+            preview.innerText = previewText;
+            info.appendChild(preview);
+
+            item.appendChild(info);
             item.onclick = () => selectHistory(i);
             container.appendChild(item);
         }
-        const defaultIndex = historyIndex >= 0 ? historyIndex : history.length - 1;
-        if (history.length > 0) selectHistory(defaultIndex);
+        // 优先恢复用户之前查看的位置（标星/删除后保持视觉焦点）
+        // 只有在尚未选中任何项、或之前的索引因删除失效时，才回退到 current 版本
+        let targetIndex = -1;
+        if (currentSelectedHistoryIndex >= 0 && currentSelectedHistoryIndex < history.length) {
+            targetIndex = currentSelectedHistoryIndex;
+        } else if (historyIndex >= 0 && historyIndex < history.length) {
+            targetIndex = historyIndex;
+        } else if (history.length > 0) {
+            targetIndex = history.length - 1;
+        }
+        if (targetIndex >= 0) selectHistory(targetIndex);
+    }
+
+    async function toggleHistoryStar(index) {
+        if (index < 0 || index >= history.length) return;
+        historyStars[index] = !historyStars[index];
+        await dbSet('writer_history_stars', historyStars);
+        renderHistoryList();
+    }
+
+    async function deleteHistoryItem(index) {
+        if (index < 0 || index >= history.length) return;
+        const isCurrent = index === historyIndex;
+        const isStarred = !!historyStars[index];
+        const preview = (history[index] || '').substring(0, 20).replace(/\n/g, ' ') || '[空文本]';
+        let msg = `确定要删除版本 ${index + 1}「${preview}...」吗？`;
+        if (isCurrent) msg += '\n（这是当前正在编辑的版本）';
+        if (isStarred) msg += '\n（这是已标星的版本）';
+        const ok = await showConfirm(msg);
+        if (!ok) return;
+        history.splice(index, 1);
+        historyTimes.splice(index, 1);
+        historyStars.splice(index, 1);
+        if (index < historyIndex) {
+            historyIndex--;
+        } else if (index === historyIndex) {
+            historyIndex = Math.max(0, history.length - 1);
+            if (history.length > 0) {
+                editor.value = history[historyIndex];
+            } else {
+                editor.value = '';
+            }
+            updateUI();
+        }
+        if (historyIndex >= history.length) historyIndex = history.length - 1;
+        await dbSet('writer_history', history);
+        await dbSet('writer_history_times', historyTimes);
+        await dbSet('writer_history_stars', historyStars);
+        renderHistoryList();
+    }
+
+    // 格式化历史版本时间：当天显示 HH:MM；当年显示 MM-DD HH:MM；跨年显示 YYYY-MM-DD
+    function formatHistoryTime(ts) {
+        if (!ts) return '';
+        const d = new Date(ts);
+        const now = new Date();
+        const pad = n => n.toString().padStart(2, '0');
+        const sameDay = d.toDateString() === now.toDateString();
+        const sameYear = d.getFullYear() === now.getFullYear();
+        if (sameDay) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        if (sameYear) return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
 
     function selectHistory(index) {
@@ -1142,22 +2105,20 @@ img { max-width: 100%; }
         wordCountEl.innerText = `字数: ${words ? words.length : 0}`;
     }
 
-    function toggleDropdown() {
-        document.getElementById("downloadDropdown").classList.toggle("show");
-        document.querySelector(".dropdown").classList.toggle("active");
+    function toggleDropdown(id, btn) {
+        closeAllDropdowns();
+        const dd = document.getElementById(id);
+        dd.classList.toggle("show");
+        if (btn) btn.parentElement.classList.toggle("active");
+    }
+
+    function closeAllDropdowns() {
+        document.querySelectorAll(".dropdown-content.show").forEach(d => d.classList.remove("show"));
+        document.querySelectorAll(".dropdown.active").forEach(d => d.classList.remove("active"));
     }
 
     window.onclick = function(event) {
-        if (!event.target.matches('.dropbtn')) {
-            var dropdowns = document.getElementsByClassName("dropdown-content");
-            for (var i = 0; i < dropdowns.length; i++) {
-                var openDropdown = dropdowns[i];
-                if (openDropdown.classList.contains('show')) {
-                    openDropdown.classList.remove('show');
-                    document.querySelector(".dropdown").classList.remove("active");
-                }
-            }
-        }
+        if (!event.target.closest('.dropdown-wrapper')) closeAllDropdowns();
     }
 
     function toggleMode() {
@@ -1298,11 +2259,35 @@ img { max-width: 100%; }
 
     async function loadLocalData() {
         try {
-            const [savedConfig, savedRef, savedInteraction, savedTech] = await Promise.all([
-                dbGet('writer_llm_config'), dbGet('writer_ref_data_list'), dbGet('writer_interaction_history'),
+            const [savedConfigs, savedCurrentId, savedRef, savedInteraction, savedTech] = await Promise.all([
+                dbGet('writer_llm_configs'),
+                dbGet('writer_llm_current_id'),
+                dbGet('writer_ref_data_list'), dbGet('writer_interaction_history'),
                 dbGet('writer_techniques')
             ]);
-            if (savedConfig) Object.assign(appConfig, savedConfig);
+            // 迁移旧数据：旧版是单个对象，新版是数组
+            if (Array.isArray(savedConfigs) && savedConfigs.length > 0) {
+                llmConfigs = savedConfigs;
+            } else {
+                const oldSingle = await dbGet('writer_llm_config');
+                if (oldSingle && oldSingle.url) {
+                    const migrated = [{ ...defaultConfig, ...oldSingle, id: 'cfg_' + Date.now(), name: '默认配置' }];
+                    llmConfigs = migrated;
+                    await dbSet('writer_llm_configs', llmConfigs);
+                    await dbDelete('writer_llm_config');
+                } else {
+                    llmConfigs = [{ ...defaultConfig, id: 'cfg_' + Date.now(), name: '默认配置' }];
+                    await dbSet('writer_llm_configs', llmConfigs);
+                }
+            }
+            // 恢复当前激活 ID，若无效则取第一个
+            if (savedCurrentId && llmConfigs.find(c => c.id === savedCurrentId)) {
+                currentConfigId = savedCurrentId;
+            } else {
+                currentConfigId = llmConfigs[0].id;
+                await dbSet('writer_llm_current_id', currentConfigId);
+            }
+            syncAppConfig();
             if (savedRef && Array.isArray(savedRef)) refDataList = savedRef;
             if (savedInteraction) interactionHistory = savedInteraction;
 
@@ -1334,10 +2319,8 @@ img { max-width: 100%; }
         showModal(modalId);
 
         if (modalId === 'config-modal') {
-            document.getElementById('cfg-url').value = appConfig.url || '';
-            document.getElementById('cfg-key').value = appConfig.key || '';
-            document.getElementById('cfg-model').value = appConfig.model || '';
-            document.getElementById('cfg-temp').value = appConfig.temp || 0.7;
+            renderLLMConfigList();
+            loadLLMConfigToForm(currentConfigId);
         } else if (modalId === 'tech-modal') {
             renderTechList();
             document.getElementById('tech-title').value = '';
@@ -1390,13 +2373,256 @@ img { max-width: 100%; }
         }
     }
 
-    function saveConfig() {
-        appConfig.url = document.getElementById('cfg-url').value.trim();
-        appConfig.key = document.getElementById('cfg-key').value.trim();
-        appConfig.model = document.getElementById('cfg-model').value.trim();
-        appConfig.temp = parseFloat(document.getElementById('cfg-temp').value) || 0.7;
-        dbSet('writer_llm_config', appConfig);
-        closeModal();
+    // === 多 LLM 配置管理 ===
+    let editingConfigId = '';  // 表单正在编辑的配置 ID
+
+    function renderLLMConfigList() {
+        const container = document.getElementById('config-list-container');
+        const activeNameEl = document.getElementById('config-active-name');
+        container.innerHTML = '';
+
+        // 左栏顶部：直接展示当前使用配置的名称
+        const active = llmConfigs.find(c => c.id === currentConfigId);
+        if (activeNameEl) {
+            if (active) {
+                activeNameEl.textContent = active.name || '未命名';
+                activeNameEl.title = active.url || '';
+            } else {
+                activeNameEl.textContent = '（未选择）';
+            }
+        }
+
+        if (llmConfigs.length === 0) {
+            container.innerHTML = '<div class="ref-empty-state"><div class="ref-empty-icon">📭</div><div class="ref-empty-text">暂无配置<br>点击下方新建</div></div>';
+            updateActivateButton();
+            return;
+        }
+        llmConfigs.forEach(cfg => {
+            const isActive = cfg.id === currentConfigId;
+            const isSelected = cfg.id === editingConfigId;
+            const item = document.createElement('div');
+            item.className = 'config-item';
+            if (isSelected) item.classList.add('selected');
+            if (isActive) item.classList.add('active');
+
+            const body = document.createElement('div');
+            body.className = 'config-item-body';
+
+            const nameRow = document.createElement('div');
+            nameRow.className = 'config-item-name';
+            const nameText = document.createElement('span');
+            nameText.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0;';
+            nameText.textContent = cfg.name || '未命名';
+            nameRow.appendChild(nameText);
+            if (isActive) {
+                const badge = document.createElement('span');
+                badge.className = 'config-active-badge';
+                badge.innerHTML = '✓ 当前使用';
+                nameRow.appendChild(badge);
+            }
+            body.appendChild(nameRow);
+
+            const meta = document.createElement('div');
+            meta.className = 'config-item-meta';
+            const modelLabel = cfg.model || '未设模型';
+            const urlLabel = cfg.url ? cfg.url.replace(/^https?:\/\//, '') : '未设 URL';
+            meta.textContent = `${modelLabel} · ${urlLabel}`;
+            body.appendChild(meta);
+
+            body.onclick = () => selectLLMConfig(cfg.id);
+            item.appendChild(body);
+
+            // 非 active 配置显示"使用"按钮
+            if (!isActive) {
+                const useBtn = document.createElement('button');
+                useBtn.className = 'config-use-btn';
+                useBtn.innerText = '使用';
+                useBtn.title = '将此配置设为当前使用';
+                useBtn.onclick = (e) => { e.stopPropagation(); setActiveLLMConfig(cfg.id); };
+                item.appendChild(useBtn);
+            }
+
+            container.appendChild(item);
+        });
+        updateActivateButton();
+    }
+
+    function escapeHtml(s) {
+        return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // 选中一个配置以编辑（不切换当前使用）
+    function selectLLMConfig(id) {
+        flushConfigFormToList();
+        editingConfigId = id;
+        loadFormFromConfig(id);
+        renderLLMConfigList();
+    }
+
+    // 把当前编辑的内容暂存到 editingConfigId 对应的配置
+    function flushConfigFormToList() {
+        if (!editingConfigId) return;
+        const cfg = llmConfigs.find(c => c.id === editingConfigId);
+        if (!cfg) return;
+        cfg.name = document.getElementById('cfg-name').value.trim();
+        cfg.url = document.getElementById('cfg-url').value.trim();
+        cfg.key = document.getElementById('cfg-key').value.trim();
+        cfg.model = document.getElementById('cfg-model').value.trim();
+        cfg.temp = parseFloat(document.getElementById('cfg-temp').value) || 0.7;
+    }
+
+    // 切换当前使用的配置
+    async function setActiveLLMConfig(id) {
+        flushConfigFormToList();  // 保存当前表单编辑
+        if (id === currentConfigId) return;
+        currentConfigId = id;
+        syncAppConfig();
+        await dbSet('writer_llm_current_id', currentConfigId);
+        editingConfigId = id;  // 顺便切到这条以便用户继续编辑
+        loadFormFromConfig(id);
+        renderLLMConfigList();
+    }
+
+    // "设为当前使用" 按钮：先保存当前表单，再激活
+    async function activateCurrentEditingConfig() {
+        if (!editingConfigId) return;
+        if (!document.getElementById('cfg-url').value.trim()) {
+            showAlert('接口 URL 不能为空！');
+            return;
+        }
+        saveLLMConfig();
+        currentConfigId = editingConfigId;
+        syncAppConfig();
+        await dbSet('writer_llm_current_id', currentConfigId);
+        renderLLMConfigList();
+    }
+
+    // 根据 editingConfigId 与 currentConfigId 关系，更新"设为当前使用"按钮状态
+    function updateActivateButton() {
+        const btn = document.getElementById('btn-activate-config');
+        if (!btn) return;
+        if (!editingConfigId) {
+            btn.disabled = true;
+            btn.innerText = '设为当前使用';
+        } else if (editingConfigId === currentConfigId) {
+            btn.disabled = true;
+            btn.innerText = '✓ 已是当前';
+        } else {
+            btn.disabled = false;
+            btn.innerText = '⭐ 设为当前使用';
+        }
+    }
+
+    function loadFormFromConfig(id) {
+        const cfg = llmConfigs.find(c => c.id === id);
+        if (!cfg) {
+            document.getElementById('cfg-name').value = '';
+            document.getElementById('cfg-url').value = '';
+            document.getElementById('cfg-key').value = '';
+            document.getElementById('cfg-model').value = '';
+            document.getElementById('cfg-temp').value = 0.7;
+            return;
+        }
+        document.getElementById('cfg-name').value = cfg.name || '';
+        document.getElementById('cfg-url').value = cfg.url || '';
+        document.getElementById('cfg-key').value = cfg.key || '';
+        document.getElementById('cfg-model').value = cfg.model || '';
+        document.getElementById('cfg-temp').value = cfg.temp || 0.7;
+    }
+
+    // 兼容旧调用
+    function loadLLMConfigToForm(id) {
+        editingConfigId = id;
+        loadFormFromConfig(id);
+        renderLLMConfigList();
+    }
+
+    // 把当前表单内容写回列表（用于切换前自动暂存未保存的修改）
+    function flushConfigFormToList() {
+        if (!editingConfigId) return;
+        const cfg = llmConfigs.find(c => c.id === editingConfigId);
+        if (!cfg) return;
+        cfg.name = document.getElementById('cfg-name').value.trim();
+        cfg.url = document.getElementById('cfg-url').value.trim();
+        cfg.key = document.getElementById('cfg-key').value.trim();
+        cfg.model = document.getElementById('cfg-model').value.trim();
+        cfg.temp = parseFloat(document.getElementById('cfg-temp').value) || 0.7;
+    }
+
+    function saveLLMConfig() {
+        const name = document.getElementById('cfg-name').value.trim();
+        const url = document.getElementById('cfg-url').value.trim();
+        if (!url) {
+            showAlert('接口 URL 不能为空！');
+            return;
+        }
+        let cfg = llmConfigs.find(c => c.id === editingConfigId);
+        if (!cfg) {
+            // 新建
+            cfg = { id: 'cfg_' + Date.now(), name: name || '新配置', url, key: '', model: '', temp: 0.7 };
+            llmConfigs.push(cfg);
+            editingConfigId = cfg.id;
+        } else {
+            cfg.name = name || '未命名配置';
+            cfg.url = url;
+            cfg.key = document.getElementById('cfg-key').value.trim();
+            cfg.model = document.getElementById('cfg-model').value.trim();
+            cfg.temp = parseFloat(document.getElementById('cfg-temp').value) || 0.7;
+        }
+        // 如果是第一个配置，自动设为 current
+        if (llmConfigs.length === 1) {
+            currentConfigId = cfg.id;
+            dbSet('writer_llm_current_id', currentConfigId);
+        }
+        // 如果用户修改的就是 current 配置，同步到 appConfig
+        if (cfg.id === currentConfigId) {
+            syncAppConfig();
+        }
+        dbSet('writer_llm_configs', llmConfigs);
+        renderLLMConfigList();
+        // 显示"已保存"提示
+        const hint = document.getElementById('config-status-hint');
+        hint.classList.remove('hidden-by-default');
+        setTimeout(() => hint.classList.add('hidden-by-default'), 1500);
+    }
+
+    async function deleteLLMConfig() {
+        if (llmConfigs.length === 0) return;
+        const cfg = llmConfigs.find(c => c.id === editingConfigId);
+        if (!cfg) return;
+        const ok = await showConfirm(`确定要删除配置「${cfg.name || '未命名'}」吗？${cfg.id === currentConfigId ? '\n（这是当前正在使用的配置）' : ''}`);
+        if (!ok) return;
+        const idx = llmConfigs.findIndex(c => c.id === editingConfigId);
+        llmConfigs.splice(idx, 1);
+        // 如果删的是 current，切换到第一个；如果列表空了，恢复默认
+        if (editingConfigId === currentConfigId) {
+            currentConfigId = llmConfigs[0] ? llmConfigs[0].id : '';
+            dbSet('writer_llm_current_id', currentConfigId);
+            syncAppConfig();
+        }
+        await dbSet('writer_llm_configs', llmConfigs);
+        // 自动切到下一个
+        if (llmConfigs.length > 0) {
+            loadLLMConfigToForm(llmConfigs[0].id);
+        } else {
+            editingConfigId = '';
+            document.getElementById('cfg-name').value = '';
+            document.getElementById('cfg-url').value = '';
+            document.getElementById('cfg-key').value = '';
+            document.getElementById('cfg-model').value = '';
+            document.getElementById('cfg-temp').value = 0.7;
+            renderLLMConfigList();
+        }
+    }
+
+    function addNewLLMConfig() {
+        flushConfigFormToList();
+        const newCfg = { id: 'cfg_' + Date.now(), name: '新配置', url: '', key: '', model: '', temp: 0.7 };
+        llmConfigs.push(newCfg);
+        editingConfigId = newCfg.id;
+        loadLLMConfigToForm(newCfg.id);
+        // 焦点放到名称输入框
+        setTimeout(() => document.getElementById('cfg-name').focus(), 50);
     }
 
     // === 参考资料列表管理 ===
