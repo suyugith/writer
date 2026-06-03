@@ -215,6 +215,22 @@ body {
 .submit-btn:hover { background-color: var(--btn-primary-hover); }
 .submit-btn:disabled { background-color: var(--border-color); cursor: not-allowed; }
 .submit-btn-stop { background-color: #ff4d4f !important; }
+.prompt-textarea-wrapper {
+    position: relative;
+}
+.prompt-textarea-wrapper .prompt-textarea {
+    width: 100%;
+}
+.llm-history-btn {
+    position: absolute; top: -28px; right: 0;
+    height: 24px; padding: 0 8px;
+    background: transparent !important; border: none;
+    color: var(--text-muted); cursor: pointer;
+    font-size: 12px; line-height: 1;
+    display: inline-flex; align-items: center; gap: 4px;
+    transition: 0.2s;
+}
+.llm-history-btn:hover { color: var(--btn-primary); }
 .loader { display: none; width: 16px; height: 16px; border: 2px solid #FFF; border-bottom-color: transparent; border-radius: 50%; animation: rotation 1s linear infinite; }
 @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
@@ -254,7 +270,7 @@ body {
     font-family: Consolas, monospace; background-color: var(--bg-sidebar);
     border: 1px solid var(--border-color); font-size: 13px; color: var(--text-main);
 }
-.custom-modal-message { padding: 20px; text-align: center; font-size: 15px; line-height: 1.6; color: var(--text-main); white-space: pre-wrap; word-break: break-word; }
+.custom-modal-message { padding: 20px; text-align: left; font-size: 15px; line-height: 1.6; color: var(--text-main); white-space: pre-wrap; word-break: break-word; }
 
 /* 历史版本弹窗分栏 */
 .history-layout { display: flex; gap: 15px; height: 50vh; min-height: 450px; flex: 1; }
