@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM 增强版兼容接口测试工具</title>
+    <!-- 依赖库引入 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+    
+    <!-- KaTeX 用于公式渲染 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f4f5f7;
+            --panel-bg: #ffffff;
+            --border-color: #e1e4e8;
+            --primary: #4a90e2;
+            --primary-hover: #357abd;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --think-bg: #f8f9fa;
+            --think-border: #d0d7de;
+            --code-bg: #f6f8fa;
+            --code-text: #24292e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d1d5da; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #959da5; }
+
+        /* 侧边栏 - [修复 7] 折叠时收缩 width 让 main 区域扩展 */
+        .sidebar {
+            width: 280px;
+            min-width: 280px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            z-index: 10;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.02);
+            /* 用 width 过渡代替 transform，过渡更顺滑 */
+            transition: width 0.3s ease, min-width 0.3s ease, padding 0.3s ease, border-right-width 0.3s ease;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .sidebar.collapsed {
+            width: 0;
+            min-width: 0;
+            padding: 0;
+            border-right-width: 0;
+        }
+        .sidebar > * {
+            transition: opacity 0.15s ease;
+        }
+        .sidebar.collapsed > * {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px; white-space: nowrap; }
+        .sidebar-header h2 { font-size: 18px; margin: 0; }
+        .history-trigger { background: none; border: 1px solid var(--border-color); border-radius: 6px; padding: 5px 8px; cursor: pointer; color: var(--text-muted); font-size: 12px; transition: all 0.2s; }
+        .history-trigger:hover, .history-trigger[aria-expanded="true"] { background: #f0f4f8; border-color: var(--primary); color: var(--primary); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: var(--text-muted); }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: 8px 10px; border: 1px solid var(--border-color);
+            border-radius: 6px; font-size: 14px; outline: none; transition: border 0.2s; font-family: inherit;
+        }
+        .form-group textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+        .form-group input:focus, .form-group textarea:focus { border-color: var(--primary); }
+
+        .params-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .divider { border-top: 1px solid var(--border-color); margin: 10px 0; padding-top: 15px; }
+
+        .history-popover { position: fixed; display: none; width: min(340px, calc(100vw - 24px)); max-height: min(460px, calc(100vh - 80px)); padding: 14px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18); z-index: 40; }
+        .history-popover.active { display: flex; flex-direction: column; }
+        .history-title { flex-shrink: 0; font-size: 13px; font-weight: bold; color: var(--text-muted); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .clear-btn { background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 12px; }
+        .history-list { list-style: none; overflow-y: auto; min-height: 0; }
+        .history-item { padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: background 0.2s; }
+        .history-item:hover { background: #f0f4f8; }
+        .history-model { font-weight: bold; font-size: 14px; margin-bottom: 3px; color: var(--primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-url { font-size: 11px; color: var(--text-muted); word-break: break-all; }
+        .history-empty { padding: 22px 10px; color: var(--text-muted); font-size: 13px; text-align: center; }
+
+        /* 主区域 */
+        .main { flex: 1; display: flex; flex-direction: column; background: var(--bg-color); min-width: 0; }
+        .top-bar { padding: 10px 20px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
+        .icon-btn { background: none; border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 14px; color: var(--text-main); transition: all 0.2s; white-space: nowrap; }
+        .icon-btn:hover { background: #f0f4f8; border-color: var(--primary); color: var(--primary); }
+
+        .chat-container { flex: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; }
+        .message-wrapper { background: var(--panel-bg); padding: 20px 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03); margin-bottom: 20px; line-height: 1.6; width: 100%; max-width: 1000px; margin-left: auto; margin-right: auto; box-sizing: border-box; transition: max-width 0.3s ease; }
+        /* 侧边栏折叠时，对话框气泡自动扩展以利用多出的空间 */
+        .sidebar.collapsed ~ .main .message-wrapper { max-width: 1400px; }
+        .message-role { font-weight: bold; margin-bottom: 10px; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+        .think-box { background: var(--think-bg); border-left: 4px solid var(--primary); border-radius: 4px; padding: 12px 16px; margin: 15px 0; font-size: 14px; color: var(--text-muted); }
+        .think-header { display: flex; align-items: center; cursor: pointer; font-weight: bold; margin-bottom: 8px; user-select: none; }
+        .think-header::before { content: "💭 思考过程 (点击折叠/展开)"; margin-right: 8px; font-size: 13px; }
+        .think-content { white-space: pre-wrap; word-wrap: break-word; }
+        .think-content.collapsed { display: none; }
+
+        .usage-info { margin-top: 15px; padding-top: 10px; border-top: 1px dashed var(--border-color); font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+        .usage-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+        /* Markdown 样式 */
+        .md-content { font-size: 15px; line-height: 1.7; word-wrap: break-word; }
+        .md-content h1, .md-content h2, .md-content h3, .md-content h4 { margin: 16px 0 8px; font-weight: 600; line-height: 1.25; }
+        .md-content h1 { font-size: 1.8em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+        .md-content h2 { font-size: 1.5em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+        .md-content p { margin: 10px 0; }
+        .md-content ul, .md-content ol { padding-left: 2em; margin: 10px 0; }
+        .md-content blockquote { margin: 10px 0; padding: 0 1em; color: #57606a; border-left: 0.25em solid #d0d7de; }
+        .md-content table { border-spacing: 0; border-collapse: collapse; margin: 10px 0; width: 100%; display: block; overflow-x: auto; }
+        .md-content table th, .md-content table td { padding: 6px 13px; border: 1px solid #d0d7de; }
+        .md-content table tr:nth-child(2n) { background-color: #f6f8fa; }
+
+        /* 代码块 */
+        .code-wrapper { margin: 15px 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); background: var(--code-bg); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03); }
+        .code-header { display: flex; justify-content: space-between; align-items: center; background: #e8eaec; padding: 6px 12px; border-bottom: 1px solid var(--border-color); }
+        .code-lang { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; font-weight: bold; color: #555; text-transform: uppercase; }
+        .copy-btn { background: #fff; border: 1px solid #d0d7de; padding: 4px 10px; border-radius: 4px; cursor: pointer; color: var(--text-main); font-size: 12px; transition: all 0.2s; }
+        .copy-btn:hover { background: #f0f4f8; border-color: var(--primary); color: var(--primary); }
+        .copy-btn.copied { background: #28a745; color: white; border-color: #28a745; }
+        .md-content pre { margin: 0 !important; border: none !important; border-radius: 0 !important; padding: 16px; overflow-x: auto; background: var(--code-bg); }
+        .md-content code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 85%; }
+        .md-content pre code { background: transparent; padding: 0; font-size: 13px; color: var(--code-text); }
+        .md-content p code, .md-content li code { background: rgba(175, 184, 193, 0.2); padding: 0.2em 0.4em; border-radius: 6px; color: #d63384; }
+
+        /* 输入区域 */
+        .input-area { background: var(--panel-bg); padding: 20px 30px; border-top: 1px solid var(--border-color); display: flex; gap: 15px; align-items: flex-end; }
+        .textarea-container { flex: 1; }
+        textarea#prompt-input { width: 100%; height: 80px; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; resize: none; outline: none; font-family: inherit; transition: border 0.2s; }
+        textarea#prompt-input:focus { border-color: var(--primary); }
+        button.send-btn { background: var(--primary); color: white; border: none; padding: 0 24px; height: 80px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+        button.send-btn:hover { background: var(--primary-hover); }
+        button.send-btn:disabled { background: #bdc3c7; cursor: not-allowed; }
+
+        /* 弹窗与图标按钮 */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 100; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; width: 80%; max-width: 900px; height: 80vh; border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .log-section { border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; }
+        .log-title { background: #f6f8fa; padding: 8px 12px; font-weight: bold; font-size: 13px; border-bottom: 1px solid var(--border-color); border-radius: 8px 8px 0 0; }
+        .log-content { padding: 12px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; white-space: pre; background: #fafafa; max-height: 350px; overflow: auto; color: #333; border-radius: 0 0 8px 8px; }
+        .log-content.error { color: #e74c3c; white-space: pre-wrap; }
+        .copy-markdown-btn { background: none; border: 1px solid transparent; padding: 3px 7px; border-radius: 5px; cursor: pointer; font-size: 15px; color: var(--text-muted); transition: all 0.2s; flex-shrink: 0; }
+
+        /* [修复 6] 中止标识样式 */
+        .stop-tag { display: inline-block; background: #fde8e8; color: #c0392b; font-size: 12px; padding: 3px 10px; border-radius: 4px; margin: 10px 0 0 0; font-weight: normal; letter-spacing: 0.5px; border: 1px solid #f5c6cb; }
+
+        /* ====== 移动端适配 ====== */
+        .mobile-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9; }
+        @media (max-width: 768px) {
+            /* [修复 7] 移动端 sidebar 改为 fixed 定位，折叠/展开通过 transform 控制 */
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100%;
+                width: 280px;
+                min-width: 280px;
+                padding: 20px;
+                border-right: 1px solid var(--border-color);
+                transform: translateX(-100%);
+                box-shadow: 4px 0 12px rgba(0,0,0,0.1);
+                transition: transform 0.3s ease;
+            }
+            .sidebar.collapsed {
+                width: 280px;
+                min-width: 280px;
+                padding: 20px;
+                border-right-width: 1px;
+                transform: translateX(-100%);
+            }
+            .sidebar.collapsed > * {
+                opacity: 1;
+                pointer-events: auto;
+            }
+            .sidebar.active { transform: translateX(0); }
+            .sidebar.active ~ .mobile-overlay { display: block; }
+            .chat-container { padding: 15px; }
+            .input-area { padding: 15px; flex-wrap: wrap; }
+            button.send-btn { height: 50px; padding: 0 15px; font-size: 14px; }
+            .modal { width: 95%; height: 90%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>🛠️ API 配置项</h2>
+            <button class="history-trigger" id="btn-open-history" type="button" aria-expanded="false" aria-controls="history-popover" title="查看历史配置">🕘 历史</button>
+        </div>
+        <div class="form-group">
+            <label>接口地址</label>
+            <input type="text" id="cfg-url" placeholder="https://api.deepseek.com/v1/chat/completions">
+        </div>
+        <div class="form-group">
+            <label>API Key</label>
+            <input type="password" id="cfg-key" placeholder="Bearer Token">
+        </div>
+        <div class="form-group">
+            <label>模型名称</label>
+            <input type="text" id="cfg-model" placeholder="deepseek-reasoner">
+        </div>
+        <div class="form-group">
+            <label>System Prompt</label>
+            <textarea id="cfg-system-prompt" rows="3" placeholder="设定 AI 的角色..."></textarea>
+        </div>
+        <div class="divider">
+            <label style="font-size: 13px; font-weight: bold; color: var(--text-muted); margin-bottom: 10px; display: block;">⚙️ 高级参数</label>
+            <div class="params-grid">
+                <div class="form-group">
+                    <label>Temperature</label>
+                    <input type="number" id="cfg-temp" step="0.1" min="0" max="2" placeholder="0.7">
+                </div>
+                <div class="form-group">
+                    <label>Top P</label>
+                    <input type="number" id="cfg-top-p" step="0.1" min="0" max="1" placeholder="1.0">
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>Max Tokens</label>
+                    <input type="number" id="cfg-max-tokens" min="1" placeholder="不限制">
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>思考模式</label>
+                    <select id="cfg-thinking-mode">
+                        <option value="enabled" selected>开启（默认）</option>
+                        <option value="disabled">关闭</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="history-popover" id="history-popover" role="dialog" aria-label="历史配置">
+        <div class="history-title">
+            <span>历史配置</span>
+            <button class="clear-btn" id="btn-clear-history" type="button">清空</button>
+        </div>
+        <ul class="history-list" id="history-list"></ul>
+    </div>
+    <div class="mobile-overlay" id="mobile-overlay"></div>
+
+    <div class="main">
+        <div class="top-bar">
+            <button class="icon-btn" id="btn-toggle-sidebar" title="折叠/展开侧边栏">☰ 侧边栏</button>
+            <button class="icon-btn" id="btn-clear-chat" title="清空当前对话上下文">🗑️ 清空</button>
+            <button class="icon-btn" id="btn-export-chat" title="导出对话为 Markdown">📥 导出</button>
+            <div style="flex:1"></div>
+            <button class="icon-btn" id="btn-open-log" title="查看调试日志">📝 日志</button>
+        </div>
+
+        <div class="chat-container" id="chat-container">
+            <!-- 初始内容由 JS 注入 -->
+        </div>
+
+        <div class="input-area">
+            <div class="textarea-container">
+                <textarea id="prompt-input" placeholder="输入提示词... (Ctrl+Enter 发送)"></textarea>
+            </div>
+            <button class="send-btn" id="send-btn">发送请求</button>
+        </div>
+    </div>
+
+    <!-- 调试日志弹窗 -->
+    <div class="modal-overlay" id="log-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📝 调试日志</h3>
+                <button class="icon-btn" id="btn-close-log">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="log-section">
+                    <div class="log-title"><span>Request Payload</span></div>
+                    <div class="log-content" id="log-request">暂无数据</div>
+                </div>
+                <div class="log-section">
+                    <div class="log-title"><span>Response Status & Headers</span></div>
+                    <div class="log-content" id="log-response-head">暂无数据</div>
+                </div>
+                <div class="log-section">
+                    <div class="log-title">
+                        <span>Raw SSE Stream</span>
+                        <span style="font-weight:normal; color:#666; font-size:11px;" id="log-sse-size"></span>
+                    </div>
+                    <div class="log-content" id="log-response-body">暂无数据</div>
+                </div>
+                <div class="log-section">
+                    <div class="log-title"><span>Errors & Warnings</span></div>
+                    <div class="log-content error" id="log-errors">无错误</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================= 核心状态 =================
+        const storageKey = 'llm_tester_history_v2';
+        let abortController = null;
+        let isReceiving = false;
+        let chatHistory = [];
+        let debugLog = { request: '', responseHead: '', responseBody: '', errors: [] };
+        const MAX_LOG_SIZE = 5 * 1024 * 1024; // 限制 5MB
+
+        // 渲染节流控制
+        let renderTimer = null;
+        let renderTarget = null;
+        let renderReasoning = "";
+        let renderContent = "";
+
+        // ================= 初始化与库配置 =================
+        
+        // [修复 8] 任意字符串 → base64（兼容中文/HTML 特殊字符/换行）
+        // 用于把模型原始输出安全存到 data-raw-code 属性，避开属性转义地狱
+        function encodeCodeAttr(text) {
+            try { return btoa(unescape(encodeURIComponent(text))); }
+            catch (e) { return ''; }
+        }
+        function decodeCodeAttr(b64) {
+            try { return decodeURIComponent(escape(atob(b64))); }
+            catch (e) { return ''; }
+        }
+
+        // 兼容配置 marked
+        const renderer = new marked.Renderer();
+        renderer.code = function(tokenOrCode, language) {
+            let code = "", validLang = "plaintext";
+            if (typeof tokenOrCode === 'object' && tokenOrCode !== null) {
+                code = tokenOrCode.text;
+                validLang = tokenOrCode.lang || 'plaintext';
+            } else {
+                code = tokenOrCode;
+                validLang = language || 'plaintext';
+            }
+
+            let highlighted = code;
+            if (validLang !== 'plaintext' && typeof hljs !== 'undefined' && hljs.getLanguage(validLang)) {
+                try { highlighted = hljs.highlight(code, { language: validLang }).value; } catch (e) {}
+            } else if (typeof hljs !== 'undefined') {
+                try {
+                    const result = hljs.highlightAuto(code);
+                    highlighted = result.value;
+                    validLang = result.language || 'plaintext';
+                } catch (e) {}
+            }
+
+            // [修复 8] 把原始代码 base64 后塞进 data-raw-code
+            // 避免：从 DOM 读 pre.textContent 时被 hljs <span> 注入的多余空白/换行污染；
+            //       也避免把含 < > & " ' 的代码直接拼到 HTML 属性里破坏文档结构
+            const encodedCode = encodeCodeAttr(code);
+
+            return `
+            <div class="code-wrapper" data-raw-code="${encodedCode}">
+                <div class="code-header">
+                    <span class="code-lang">${validLang}</span>
+                    <button class="copy-btn" data-action="copy-code">复制代码</button>
+                </div>
+                <pre><code class="hljs language-${validLang}">${highlighted}</code></pre>
+            </div>`;
+        };
+
+        // 使用 marked.use 替代 setOptions
+        marked.use({ renderer, gfm: true, breaks: true, headerIds: false, mangle: false });
+
+        // ================= 工具函数 =================
+
+        // 智能滚动检测
+        function isNearBottom() {
+            const container = document.getElementById('chat-container');
+            return container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        }
+
+        function scrollToBottom(force = false) {
+            if (force || isNearBottom()) {
+                const container = document.getElementById('chat-container');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        // 兼容非 HTTPS 环境的复制功能
+        function copyToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            } else {
+                return new Promise((resolve, reject) => {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    } finally {
+                        document.body.removeChild(textArea);
+                    }
+                });
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return "";
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // [修复 8] 数学公式渲染 —— KaTeX 通过 defer 异步加载，首屏 / 早期请求时
+        // renderMathInElement 可能尚未就绪；改用轮询 + 待办队列，加载完成统一补渲染
+        let mathReady = false;
+        const pendingMathElements = new Set();
+        let mathPollTimer = null;
+        let mathPollRetries = 0;
+        const MAX_MATH_POLL_RETRIES = 100; // 100 * 80ms = 8s 上限，避免 KaTeX 加载失败时无限轮询
+
+        function tryRenderMathNow(element) {
+            if (typeof renderMathInElement !== 'function') return false;
+            renderMathInElement(element, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\(', right: '\\)', display: false },
+                    { left: '\\[', right: '\\]', display: true }
+                ],
+                // 显式声明：跳过这些标签里的 $...$，避免误识别或破坏结构
+                // （code/pre/script/style/textarea 是 KaTeX 默认忽略的，这里写出来便于阅读）
+                ignore: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                throwOnError: false
+            });
+            return true;
+        }
+
+        function renderMath(element) {
+            if (mathReady) {
+                tryRenderMathNow(element);
+                return;
+            }
+            // 首次调用时若 KaTeX 未就绪：先入队并启动轮询
+            pendingMathElements.add(element);
+            if (mathPollTimer) return;
+            mathPollTimer = setInterval(() => {
+                if (typeof renderMathInElement === 'function') {
+                    clearInterval(mathPollTimer);
+                    mathPollTimer = null;
+                    mathReady = true;
+                    pendingMathElements.forEach(el => tryRenderMathNow(el));
+                    pendingMathElements.clear();
+                    return;
+                }
+                if (++mathPollRetries > MAX_MATH_POLL_RETRIES) {
+                    clearInterval(mathPollTimer);
+                    mathPollTimer = null;
+                    // 放弃：把队列里残留的元素再尝试一次，失败也不再阻塞
+                    pendingMathElements.forEach(el => {
+                        if (typeof renderMathInElement === 'function') tryRenderMathNow(el);
+                    });
+                    pendingMathElements.clear();
+                }
+            }, 80);
+        }
+
+        // [修复 10] 严控 think 块判断规则（用户明确收紧）：
+        //   1) 只识别一个 think 块
+        //   2) 内容必须以 <think> 开头（无前导空白）才视为 think 块开始
+        //   3) 结束标记必须是 </think>\n（必须紧跟一个换行符）
+        //   4) 没有换行的 </think> 不算结束 —— 整段继续作为 think 内容（含中间的 </think> 字面量）
+        //   5) 第一个 think 块结束（规则 3 命中）后，后续内容里的 <think> 一律不再识别
+        // 流式兼容：未找到 </think>\n 时按"进行中"处理，把已写入部分渲染为 think，
+        //          这样能边生成边展示，又不会提前误判一个无换行的 </think>
+        function extractThinkSegments(content) {
+            const segments = [];
+            if (!content) return segments;
+
+            // 规则 2: 必须以 <think> 开头（无前导空白）
+            if (!content.startsWith('<think>')) {
+                if (content) segments.push({ type: 'text', content });
+                return segments;
+            }
+
+            // 规则 3/4: 结束标记必须严格是 </think>\n（9 个字符）
+            const endMarker = '</think>\n';
+            const endIdx = content.indexOf(endMarker, 7); // 7 = '<think>'.length（< + think + >）
+
+            if (endIdx === -1) {
+                // 未命中规则 3：要么在生成中、要么模型漏了换行 —— 统一按"进行中 think"处理
+                const thinkBody = content.substring(7);
+                if (thinkBody.trim()) {
+                    segments.push({ type: 'think', content: thinkBody });
+                }
+                return segments;
+            }
+
+            // 命中规则 3 —— 提取 think + 后续正文
+            const thinkBody = content.substring(7, endIdx);
+            const textBody = content.substring(endIdx + endMarker.length);
+
+            // 规则 1/5: 只处理这一个 think；textBody 里的 <think> 不再识别
+            if (thinkBody.trim()) {
+                segments.push({ type: 'think', content: thinkBody });
+            }
+            if (textBody) {
+                segments.push({ type: 'text', content: textBody });
+            }
+            return segments;
+        }
+
+        // 安全的 Markdown 渲染 (防 XSS + 渲染公式 + 思考块)
+        // [修复 6] 增加 isAborted 选项：中止时在内容末尾追加"已停止生成"提示
+        // [修复 8] 重构 think 块处理：任意位置 + 多个块都正确切分
+        function renderMarkdown(targetDiv, apiReasoning, mainContent, options = {}) {
+            const { isAborted = false } = options;
+            let html = '';
+
+            if (apiReasoning) {
+                // DOMPurify 清除危险标签，marked.parse 渲染 markdown
+                const safeReasoning = DOMPurify.sanitize(marked.parse(apiReasoning));
+                html += `<div class="think-box"><div class="think-header"></div><div class="think-content">${safeReasoning}</div></div>`;
+            }
+
+            // 按 <think> 块切分正文，think 块走 think-box，正文走普通 markdown 路径
+            const segments = extractThinkSegments(mainContent);
+            for (const seg of segments) {
+                if (seg.type === 'think') {
+                    const safeThink = DOMPurify.sanitize(marked.parse(seg.content));
+                    html += `<div class="think-box"><div class="think-header"></div><div class="think-content">${safeThink}</div></div>`;
+                } else if (seg.content && seg.content.trim()) {
+                    const fixed = fixIncompleteCodeBlocks(seg.content);
+                    const safeHtml = DOMPurify.sanitize(marked.parse(fixed));
+                    html += safeHtml;
+                }
+            }
+
+            // [修复 6] 中止标识：让用户明确知道这次回复未完成
+            if (isAborted) {
+                html += `<div class="stop-tag">⏹ 已停止生成（内容可能不完整）</div>`;
+            }
+
+            targetDiv.innerHTML = html;
+            renderMath(targetDiv); // 渲染数学公式
+        }
+
+        // [修复 5] 修复未闭合的围栏代码块
+        // 严格遵循 CommonMark 规范：
+        // 1. 围栏字符必须是 3+ 个连续 ` 或 ~
+        // 2. 起始围栏可有 info string（语言标识）
+        // 3. 闭合围栏字符必须与起始相同，且长度 >= 起始长度
+        // 4. 嵌套 fence 必须字符相同
+        // 实现：栈式跟踪所有未闭合的围栏，最后统一补全
+        function fixIncompleteCodeBlocks(text) {
+            if (!text) return text;
+            const lines = text.split('\n');
+            // 匹配行首围栏：0-3 空格 + 3+ 反引号或波浪号 + 任意 info string
+            const fenceRegex = /^(\s{0,3})(`{3,}|~{3,})(.*)$/;
+            // 栈：每个元素 { char, len } 记录起始围栏的字符和长度
+            const stack = [];
+            const result = [];
+
+            for (const line of lines) {
+                const match = line.match(fenceRegex);
+                if (match) {
+                    const fence = match[2];
+                    const char = fence[0];
+                    const len = fence.length;
+                    const top = stack[stack.length - 1];
+
+                    if (top === undefined) {
+                        // 没有打开的围栏 -> 视为"开"
+                        stack.push({ char, len });
+                    } else if (top.char === char && len >= top.len) {
+                        // 字符相同且长度足够 -> 视为"闭"
+                        stack.pop();
+                    }
+                    // 其他情况（如 ``` 内出现 ~~~）按内容处理
+                }
+                result.push(line);
+            }
+
+            // 从栈顶到栈底补全所有未关闭的围栏
+            // 用相同的字符和长度，保持语义一致
+            while (stack.length > 0) {
+                const top = stack.pop();
+                result.push(top.char.repeat(top.len));
+            }
+
+            return result.join('\n');
+        }
+
+        // 节流渲染控制
+        function throttledRender(targetDiv, reasoning, content) {
+            renderTarget = targetDiv;
+            renderReasoning = reasoning;
+            renderContent = content;
+            if (!renderTimer) {
+                renderTimer = setTimeout(() => {
+                    renderMarkdown(renderTarget, renderReasoning, renderContent);
+                    scrollToBottom(); // 智能滚动
+                    renderTimer = null;
+                }, 50);
+            }
+        }
+
+        // ================= UI 渲染 =================
+        function setUIState(receiving) {
+            isReceiving = receiving;
+            const btn = document.getElementById('send-btn');
+            btn.textContent = receiving ? '停止生成' : '发送请求';
+            btn.style.backgroundColor = receiving ? '#e74c3c' : '';
+        }
+
+        function appendUserMessage(text) {
+            const container = document.getElementById('chat-container');
+            const box = document.createElement('div');
+            box.className = 'message-wrapper';
+            box.style.backgroundColor = '#eef6fc';
+            const safeHtml = DOMPurify.sanitize(marked.parse(escapeHtml(text)));
+            box.innerHTML = `<div class="message-role" style="color: var(--primary);">User</div><div class="md-content">${safeHtml}</div>`;
+            box.setAttribute('data-raw-markdown', text);
+            container.appendChild(box);
+            renderMath(box);
+            scrollToBottom(true);
+        }
+
+        function createAssistantBox() {
+            const container = document.getElementById('chat-container');
+            const box = document.createElement('div');
+            box.className = 'message-wrapper';
+            box.innerHTML = `
+                <div class="message-role" style="color: #27ae60;">Assistant</div>
+                <div class="md-content">...</div>
+                <div class="usage-info">
+                    <span class="usage-text"></span>
+                    <button class="copy-markdown-btn" data-action="copy-markdown" title="复制为 Markdown">📋</button>
+                </div>`;
+            container.appendChild(box);
+            return box;
+        }
+
+        function clearChat() {
+            chatHistory = [];
+            const container = document.getElementById('chat-container');
+            container.innerHTML = `
+                <div class="message-wrapper">
+                    <div class="message-role">System</div>
+                    <div class="md-content">欢迎使用 LLM 增强版测试器！<br>支持 Markdown / 公式渲染 / 多轮对话 / 调试日志。</div>
+                </div>`;
+        }
+
+        function exportChat() {
+            let mdText = "# LLM 测试工具对话导出\n\n";
+            const wrappers = document.querySelectorAll('.message-wrapper');
+            
+            wrappers.forEach(wrapper => {
+                const role = wrapper.querySelector('.message-role').textContent;
+                const content = wrapper.getAttribute('data-raw-markdown') || wrapper.querySelector('.md-content').innerText;
+                if (role !== 'System') {
+                    mdText += `## ${role}\n\n${content}\n\n---\n\n`;
+                }
+            });
+
+            const blob = new Blob([mdText], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chat_${new Date().toISOString().replace(/[:.]/g, '-')}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ================= 历史记录 =================
+        function positionHistoryPopover() {
+            const popover = document.getElementById('history-popover');
+            const trigger = document.getElementById('btn-open-history');
+            if (!popover.classList.contains('active')) return;
+
+            const triggerRect = trigger.getBoundingClientRect();
+            const margin = 12;
+            const popoverWidth = popover.offsetWidth;
+            const left = Math.max(
+                margin,
+                Math.min(triggerRect.right - popoverWidth, window.innerWidth - popoverWidth - margin)
+            );
+
+            popover.style.left = `${left}px`;
+            popover.style.top = `${triggerRect.bottom + 8}px`;
+        }
+
+        function setHistoryPopover(open) {
+            const popover = document.getElementById('history-popover');
+            const trigger = document.getElementById('btn-open-history');
+            popover.classList.toggle('active', open);
+            trigger.setAttribute('aria-expanded', String(open));
+            if (open) requestAnimationFrame(positionHistoryPopover);
+        }
+
+        function loadHistory() {
+            const list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            const ul = document.getElementById('history-list');
+            ul.innerHTML = '';
+            if (list.length > 0 && !document.getElementById('cfg-url').value) applyConfig(list[0]);
+            if (list.length === 0) {
+                const empty = document.createElement('li');
+                empty.className = 'history-empty';
+                empty.textContent = '暂无历史配置';
+                ul.appendChild(empty);
+                return;
+            }
+            list.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'history-item';
+                li.innerHTML = `<div class="history-model">${escapeHtml(item.model)}</div><div class="history-url">${escapeHtml(item.url)}</div>`;
+                li.addEventListener('click', () => {
+                    applyConfig(item);
+                    setHistoryPopover(false);
+                });
+                ul.appendChild(li);
+            });
+        }
+
+        function saveToHistory(url, key, model, sysPrompt, thinkingMode) {
+            let list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            const index = list.findIndex(i => i.url === url && i.model === model);
+            if (index !== -1) list.splice(index, 1);
+            list.unshift({ url, key, model, sysPrompt, thinkingMode, timestamp: Date.now() });
+            if (list.length > 20) list = list.slice(0, 20);
+            localStorage.setItem(storageKey, JSON.stringify(list));
+            loadHistory();
+        }
+
+        function applyConfig(cfg) {
+            document.getElementById('cfg-url').value = cfg.url || '';
+            document.getElementById('cfg-key').value = cfg.key || '';
+            document.getElementById('cfg-model').value = cfg.model || '';
+            document.getElementById('cfg-system-prompt').value = cfg.sysPrompt || '';
+            // 旧版历史记录没有 thinkingMode 字段时仍然默认开启。
+            document.getElementById('cfg-thinking-mode').value =
+                cfg.thinkingMode === 'disabled' ? 'disabled' : 'enabled';
+        }
+
+        function updateLogUI() {
+            document.getElementById('log-request').textContent = debugLog.request || '暂无数据';
+            document.getElementById('log-response-head').textContent = debugLog.responseHead || '暂无数据';
+            document.getElementById('log-response-body').textContent = debugLog.responseBody || '暂无数据';
+            document.getElementById('log-sse-size').textContent = debugLog.responseBody ? `${(debugLog.responseBody.length / 1024).toFixed(1)} KB` : '';
+            document.getElementById('log-errors').textContent = debugLog.errors.length > 0 ? debugLog.errors.join('\n\n') : '无错误';
+        }
+
+        function cleanContentForHistory(text) {
+            if (!text) return "";
+            // [修复 10] 与 extractThinkSegments 保持严格一致：
+            //   - 不以 <think> 开头：不剥离
+            //   - 找不到 </think>\n：不剥离（保留原文，下一轮 LLM 会看到包括 <think> 的字面量）
+            //   - 命中后：只剥第一个，后续 <think> 保留
+            if (!text.startsWith('<think>')) return text.trim();
+            const endIdx = text.indexOf('</think>\n', 7); // 7 = '<think>'.length
+            if (endIdx === -1) return text.trim();
+            return text.substring(endIdx + '</think>\n'.length).trim();
+        }
+
+        // ================= 核心逻辑：流式请求 =================
+        async function startStream() {
+            if (isReceiving) {
+                abortController.abort();
+                setUIState(false);
+                return;
+            }
+
+            const url = document.getElementById('cfg-url').value.trim();
+            const apiKey = document.getElementById('cfg-key').value.trim();
+            const model = document.getElementById('cfg-model').value.trim();
+            const sysPrompt = document.getElementById('cfg-system-prompt').value.trim();
+            const thinkingMode = document.getElementById('cfg-thinking-mode').value;
+            const prompt = document.getElementById('prompt-input').value.trim();
+
+            if (!url || !model || !prompt) { alert("请补全 URL、模型名称和提示词！"); return; }
+
+            debugLog = { request: '', responseHead: '', responseBody: '', errors: [] };
+            saveToHistory(url, apiKey, model, sysPrompt, thinkingMode);
+            chatHistory.push({ role: 'user', content: prompt });
+
+            appendUserMessage(prompt);
+            const responseBox = createAssistantBox();
+            const targetDiv = responseBox.querySelector('.md-content');
+            const usageTextSpan = responseBox.querySelector('.usage-text');
+
+            document.getElementById('prompt-input').value = '';
+            setUIState(true);
+
+            abortController = new AbortController();
+            let accumulatedReasoning = "";
+            let accumulatedContent = "";
+            let usageInfo = null;
+            // [修复 3 + 6] 跟踪中止状态：用于 finally 块保存已生成内容到历史 + 显示停止标识
+            let wasAborted = false;
+
+            let messages = [];
+            if (sysPrompt) messages.push({ role: 'system', content: sysPrompt });
+            messages = messages.concat(chatHistory);
+
+            const requestBody = { model, messages, stream: true, stream_options: { include_usage: true } };
+            // 默认开启模型思考模式；关闭时不发送 enable_thinking，兼容不认识该字段的接口。
+            if (thinkingMode === 'enabled') requestBody.enable_thinking = true;
+
+            const temp = parseFloat(document.getElementById('cfg-temp').value);
+            const topP = parseFloat(document.getElementById('cfg-top-p').value);
+            const maxTokens = parseInt(document.getElementById('cfg-max-tokens').value);
+            if (!isNaN(temp)) requestBody.temperature = temp;
+            if (!isNaN(topP)) requestBody.top_p = topP;
+            if (!isNaN(maxTokens)) requestBody.max_tokens = maxTokens;
+
+            debugLog.request = JSON.stringify(requestBody, null, 2);
+            updateLogUI();
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    body: JSON.stringify(requestBody),
+                    signal: abortController.signal
+                });
+
+                let headersStr = `HTTP Status: ${response.status} ${response.statusText}\n\n`;
+                response.headers.forEach((val, key) => { headersStr += `${key}: ${val}\n`; });
+                debugLog.responseHead = headersStr;
+                updateLogUI();
+
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status} - ${await response.text()}`);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '', isDone = false;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done || isDone) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    buffer += chunk;
+
+                    if (debugLog.responseBody.length < MAX_LOG_SIZE) {
+                        debugLog.responseBody += chunk;
+                        if (debugLog.responseBody.length >= MAX_LOG_SIZE) debugLog.responseBody += '\n... [日志截断] ...';
+                    }
+
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed.startsWith('data:')) continue;
+
+                        const dataStr = trimmed.replace(/^data:\s*/, '');
+                        if (dataStr === '[DONE]') { isDone = true; break; }
+
+                        try {
+                            const data = JSON.parse(dataStr);
+                            if (data.usage) usageInfo = data.usage;
+
+                            if (data.choices && data.choices.length > 0) {
+                                const delta = data.choices[0].delta || {};
+
+                                // 兼容不同 OpenAI 风格网关常见的思考内容字段。
+                                // 按优先级只取第一个有效字段，避免网关同时返回别名时重复显示。
+                                const reasoningDelta = [
+                                    delta.reasoning_content,
+                                    delta.reasoning,
+                                    delta.thinking
+                                ].find(value => typeof value === 'string' && value.length > 0) || '';
+
+                                if (reasoningDelta) accumulatedReasoning += reasoningDelta;
+                                if (typeof delta.content === 'string') accumulatedContent += delta.content;
+                            }
+                            throttledRender(targetDiv, accumulatedReasoning, accumulatedContent);
+                        } catch (e) {
+                            const errMsg = `JSON Parse Error: ${e.message}\nRaw Data: ${dataStr}`;
+                            console.warn(errMsg);
+                            debugLog.errors.push(errMsg);
+                            updateLogUI();
+                        }
+                    }
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    // [修复 3 + 6] 用户主动中止：仅记录状态，由 finally 统一处理渲染和历史保存
+                    wasAborted = true;
+                } else {
+                    // 用 DOM API 追加错误提示，避免破坏已渲染的 markdown/公式/事件绑定
+                    const br = document.createElement('br');
+                    const errSpan = document.createElement('span');
+                    errSpan.style.color = '#e74c3c';
+                    errSpan.textContent = `[请求报错: ${error.message}]`;
+                    targetDiv.appendChild(br);
+                    targetDiv.appendChild(errSpan);
+                    debugLog.errors.push(`Fetch Error: ${error.message}`);
+                }
+            } finally {
+                // [修复 6] 兜底渲染：强制取消任何 pending 的节流 timer 并执行最终渲染
+                // 关键场景：abort 发生在节流窗口内（renderTimer 还在 setTimeout 中），
+                // 如果不 clearTimeout，最后一批 token 会延迟到 50ms 后才渲染，
+                // 而那时 UI 状态已经被 setUIState(false) 重置，造成"按钮已可点击但内容还在渲染"的卡顿感
+                clearTimeout(renderTimer);
+                renderTimer = null;
+                renderMarkdown(targetDiv, accumulatedReasoning, accumulatedContent, { isAborted: wasAborted });
+                scrollToBottom();
+
+                // 组装 raw markdown（用于复制/导出）
+                let fullRawMarkdown = '';
+                if (accumulatedReasoning) fullRawMarkdown += `<think>\n${accumulatedReasoning}\n</think>\n\n`;
+                fullRawMarkdown += accumulatedContent;
+                if (wasAborted) fullRawMarkdown += '\n\n[已停止生成]';
+                responseBox.setAttribute('data-raw-markdown', fullRawMarkdown);
+
+                // [修复 3] 中止时已生成的内容也必须保存到 chatHistory
+                // 场景：用户问到一半点击"停止生成"，此时已有部分内容输出，
+                // 若不保存，下一轮对话上下文会丢失这段回复，影响多轮对话的连续性
+                if (accumulatedContent || accumulatedReasoning) {
+                    const cleanContent = cleanContentForHistory(accumulatedContent);
+                    if (cleanContent) {
+                        // 正常情况：剥离 think 标签后有内容，保存
+                        chatHistory.push({ role: 'assistant', content: cleanContent });
+                    } else if (wasAborted && accumulatedContent && accumulatedContent.trim()) {
+                        // 中止兜底：内容仅含 <think> 标签被剥离后为空，保留原始部分以维持上下文
+                        chatHistory.push({ role: 'assistant', content: accumulatedContent.trim() });
+                    }
+                    // 仅 reasoning 没有 content 的情况：不保存（reasoning 不应进历史）
+                }
+
+                if (usageInfo && usageTextSpan) {
+                    let usageText = `Tokens → Prompt: ${usageInfo.prompt_tokens}, Completion: ${usageInfo.completion_tokens}, Total: ${usageInfo.total_tokens}`;
+                    if (usageInfo.completion_tokens_details && usageInfo.completion_tokens_details.reasoning_tokens) {
+                        usageText += ` (Reasoning: ${usageInfo.completion_tokens_details.reasoning_tokens})`;
+                    }
+                    usageTextSpan.textContent = usageText;
+                }
+
+                updateLogUI();
+                setUIState(false);
+            }
+        }
+
+        // ================= 事件绑定 (统一管理) =================
+        document.addEventListener('DOMContentLoaded', () => {
+            clearChat();
+            loadHistory();
+
+            // 按钮绑定
+            document.getElementById('send-btn').addEventListener('click', startStream);
+            document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
+                setHistoryPopover(false);
+                // [修复 7] 区分桌面端与移动端：
+                // - 桌面端：折叠/展开侧边栏（width 收缩使 main 区域扩展）
+                // - 移动端：显示/隐藏侧边栏（使用 .active 控制 translateX）
+                const sidebar = document.getElementById('sidebar');
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.toggle('active');
+                } else {
+                    sidebar.classList.toggle('collapsed');
+                }
+            });
+            document.getElementById('btn-open-history').addEventListener('click', () => {
+                const isOpen = document.getElementById('history-popover').classList.contains('active');
+                setHistoryPopover(!isOpen);
+            });
+            document.getElementById('btn-clear-chat').addEventListener('click', clearChat);
+            document.getElementById('btn-clear-history').addEventListener('click', () => {
+                localStorage.removeItem(storageKey);
+                loadHistory();
+            });
+            document.getElementById('btn-export-chat').addEventListener('click', exportChat);
+            document.getElementById('btn-open-log').addEventListener('click', () => document.getElementById('log-modal').classList.add('active'));
+            document.getElementById('btn-close-log').addEventListener('click', () => document.getElementById('log-modal').classList.remove('active'));
+            
+            // 移动端侧边栏遮罩点击关闭
+            document.getElementById('mobile-overlay').addEventListener('click', () => {
+                setHistoryPopover(false);
+                document.getElementById('sidebar').classList.remove('active');
+            });
+
+            // 点击浮动框外部或按 Esc 时关闭；窗口变化时重新对齐按钮。
+            document.addEventListener('click', event => {
+                const popover = document.getElementById('history-popover');
+                const trigger = document.getElementById('btn-open-history');
+                if (
+                    popover.classList.contains('active') &&
+                    !popover.contains(event.target) &&
+                    !trigger.contains(event.target)
+                ) {
+                    setHistoryPopover(false);
+                }
+            });
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape') setHistoryPopover(false);
+            });
+            window.addEventListener('resize', positionHistoryPopover);
+
+            // 输入框快捷键
+            document.getElementById('prompt-input').addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.key === 'Enter') startStream();
+            });
+
+            // 事件委托：处理动态生成的按钮点击
+            document.getElementById('chat-container').addEventListener('click', function(e) {
+                // 处理折叠
+                if (e.target.classList.contains('think-header')) {
+                    const content = e.target.nextElementSibling;
+                    if (content) content.classList.toggle('collapsed');
+                }
+                
+                // 处理按钮动作
+                const targetBtn = e.target.closest('button');
+                if (!targetBtn) return;
+
+                const action = targetBtn.getAttribute('data-action');
+                
+                if (action === 'copy-code') {
+                    // [修复 8] 从 data-raw-code 取原始字符串，避免 hljs 注入空白
+                    const wrapper = targetBtn.closest('.code-wrapper');
+                    const encodedCode = wrapper.getAttribute('data-raw-code') || '';
+                    let textToCopy = decodeCodeAttr(encodedCode);
+                    // 兜底：老会话的 code block 没有 data-raw-code 属性时退回 pre.textContent
+                    if (!textToCopy) {
+                        const pre = wrapper.querySelector('pre');
+                        if (pre) textToCopy = pre.textContent;
+                    }
+                    if (!textToCopy) {
+                        alert('代码内容不可用');
+                        return;
+                    }
+                    copyToClipboard(textToCopy).then(() => {
+                        const originalText = targetBtn.textContent;
+                        targetBtn.textContent = '已复制!';
+                        targetBtn.classList.add('copied');
+                        setTimeout(() => {
+                            targetBtn.textContent = originalText;
+                            targetBtn.classList.remove('copied');
+                        }, 2000);
+                    }).catch(() => alert('复制失败'));
+                }
+                
+                if (action === 'copy-markdown') {
+                    const wrapper = targetBtn.closest('.message-wrapper');
+                    const rawMarkdown = wrapper.getAttribute('data-raw-markdown');
+                    if (!rawMarkdown) {
+                        alert('当前内容不可复制');
+                        return;
+                    }
+                    copyToClipboard(rawMarkdown).then(() => {
+                        targetBtn.textContent = '✅';
+                        targetBtn.style.color = '#28a745';
+                        setTimeout(() => { targetBtn.textContent = '📋'; targetBtn.style.color = ''; }, 1500);
+                    }).catch(() => {
+                        targetBtn.textContent = '❌';
+                        targetBtn.style.color = '#e74c3c';
+                        setTimeout(() => { targetBtn.textContent = '📋'; targetBtn.style.color = ''; }, 1500);
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
