@@ -25,9 +25,10 @@ function renderArticleSelector(kind) {
     select.value = article.id;
     select.title = article.title;
     document.getElementById(`${kind}-current-article`).disabled = article.id === articleLibrary.activeId;
-    const nameId = kind === 'ref' ? 'ref-article-name' : 'llm-history-article-name';
-    document.getElementById(nameId).textContent = `${article.id === articleLibrary.activeId ? '当前文章' : '正在查看'}：${article.title}` +
-        (kind === 'ref' ? '' : ' · 最多保留 99 条记录');
+    if (kind === 'llm-history') {
+        document.getElementById('llm-history-article-name').textContent =
+            `${article.id === articleLibrary.activeId ? '当前文章' : '正在查看'}：${article.title} · 最多保留 99 条记录`;
+    }
 }
 
 function selectManagementArticle(kind, id = articleLibrary?.activeId) {
