@@ -1817,6 +1817,38 @@ img { max-width: 100%; }
         if (!event.target.closest('.dropdown-wrapper')) closeAllDropdowns();
     }
 
+    let readingState = null;
+
+    function enterReadingMode() {
+        if (readingState) return;
+        readingState = { previewMode: isPreviewMode, editorScroll: editor.scrollTop, previewScroll: preview.scrollTop };
+        closeAllDropdowns();
+        document.getElementById('floating-toolbar').classList.add('hidden-by-default');
+        document.getElementById('reading-article-title').textContent = document.getElementById('current-article-name').textContent;
+        document.body.classList.add('reading-mode');
+        if (!isPreviewMode) toggleMode();
+        preview.scrollTop = 0;
+        document.getElementById('exit-reading-btn').focus();
+    }
+
+    function exitReadingMode() {
+        if (!readingState) return;
+        const saved = readingState;
+        readingState = null;
+        document.body.classList.remove('reading-mode');
+        if (isPreviewMode !== saved.previewMode) toggleMode();
+        editor.scrollTop = saved.editorScroll;
+        preview.scrollTop = saved.previewScroll;
+        document.getElementById('current-article-name').focus();
+    }
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && readingState) {
+            event.preventDefault();
+            exitReadingMode();
+        }
+    });
+
     function toggleMode() {
         isPreviewMode = !isPreviewMode;
         const btn = document.getElementById('toggle-mode-btn');
@@ -3144,6 +3176,8 @@ function bindUIEvents() {
     const handlers = {
         'toggle-sidebar': function(event) { toggleSidebar() },
         'toggle-mode': function(event) { toggleMode() },
+        'enter-reading': function(event) { enterReadingMode() },
+        'exit-reading': function(event) { exitReadingMode() },
         'toggle-dropdown-articleDropdown': function(event) { toggleDropdown('articleDropdown', this) },
         'clear-content': function(event) { clearContent(); return false; },
         'import-md': function(event) { importMD(); return false; },

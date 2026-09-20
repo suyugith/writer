@@ -105,7 +105,7 @@ function bindActiveArticle(loadText = false) {
     renderArticleSelector('ref');
     renderArticleSelector('llm-history');
     document.getElementById('current-article-name').textContent = article.title;
-    document.getElementById('current-article-name').title = article.title;
+    document.getElementById('current-article-name').title = '全屏阅读：' + article.title;
     saveTimeEl.textContent = `最后保存: ${formatHistoryTime(article.updatedAt)}`;
 }
 
