@@ -24,10 +24,10 @@
     <script src="js/doc-reader.min.js?v=3.1"></script>
 
     <link rel="stylesheet" href="css/editor.css?v=3.1">
-    <link rel="stylesheet" href="css/workspace.css?v=3.1-icons-3">
-    <link rel="stylesheet" href="css/management.css?v=3.1-icons-3">
+    <link rel="stylesheet" href="css/workspace.css?v=3.1-reading-1">
+    <link rel="stylesheet" href="css/management.css?v=3.1-reading-1">
     <script src="js/article-library.js?v=3.1"></script>
-    <script src="js/article-workspace.js?v=3.1-icons-3" defer></script>
+    <script src="js/article-workspace.js?v=3.1-reading-1" defer></script>
 </head>
 
 <body>
@@ -80,10 +80,14 @@
 
     <main class="main-content" aria-label="文章正文">
         <div class="editor-container">
+            <div class="reading-toolbar">
+                <span id="reading-article-title"></span>
+                <button id="exit-reading-btn" data-click="exit-reading" title="退出全屏阅读（Esc）"><svg class="ui-icon" aria-hidden="true"><use href="#icon-left"></use></svg>返回工作区</button>
+            </div>
             <textarea id="editor" aria-label="文章正文" class="editor-textarea" data-input="handle-input"></textarea>
             <div id="preview" class="editor-preview markdown-body"></div>
             <div class="status-bar">
-                <button id="current-article-name" class="current-article-name" data-click="open-modal-history-modal" title="切换文章">未命名文章</button>
+                <button id="current-article-name" class="current-article-name" data-click="enter-reading" title="全屏阅读">未命名文章</button>
                 <span id="word-count">字数: 0</span>
                 <span id="save-time">最后保存: -</span>
             </div>
@@ -399,6 +403,6 @@
     </div>
 
 <script src="js/html-docx.min.js?v=3.1"></script>
-<script src="js/main.js?v=3.1-icons-3"></script>
+<script src="js/main.js?v=3.1-reading-1"></script>
 </body>
 </html>
