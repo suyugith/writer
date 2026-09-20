@@ -1,4 +1,4 @@
-/* Workspace presentation inspired by new_ui.png. Application behavior lives in index.html. */
+/* Workspace presentation inspired by new_ui.png. Application behavior lives in js/main.js. */
 :root {
     --bg-main: #f7f9fd;
     --bg-sidebar: #f5f7fb;
@@ -71,7 +71,7 @@ button:focus-visible, summary:focus-visible, a:focus-visible, select:focus-visib
     display: inline-flex; align-items: center; justify-content: center; gap: 5px;
     min-height: 34px; margin: 0; padding: 0 7px; border: 1px solid var(--border-color);
     background: var(--editor-bg); color: var(--text-main); border-radius: 6px;
-    font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer;
+    font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer;
     transition: background .15s, border-color .15s, color .15s;
 }
 .tools-basic button:hover { background: var(--bg-sidebar); border-color: #c5d3ef; color: var(--btn-primary); }
@@ -80,6 +80,9 @@ button:focus-visible, summary:focus-visible, a:focus-visible, select:focus-visib
 .toolbar-divider { width: 1px; height: 24px; flex-shrink: 0; background: var(--border-color); margin: 0 1px; }
 .dropdown-content { min-width: 214px; padding: 6px; border-radius: 8px; margin-top: 6px; }
 .dropdown-content a { border-radius: 5px; white-space: nowrap; line-height: 1.6; }
+.toolbar-actions .dropdown-content a { font-size: 14px; font-weight: 700; }
+.toolbar-actions .dropdown-content a:has(.ui-icon) { display: flex; align-items: center; justify-content: flex-start; gap: 8px; }
+.dropdown-separator { height: 1px; margin: 6px 8px; background: var(--border-color); }
 .toolbar-actions .dropdown:last-of-type .dropdown-content { right: 0; }
 
 .sidebar { grid-row: 2; width: 100%; height: 100%; min-height: 0; background: var(--editor-bg); border: 1px solid var(--border-color); border-radius: 12px; }
@@ -112,9 +115,15 @@ button:focus-visible, summary:focus-visible, a:focus-visible, select:focus-visib
 .prompt-title-label { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 8px; background: var(--btn-blue); color: var(--btn-primary); font-size: 15px; }
 select#llm-mode-select { border: 0; border-left: 1px solid var(--border-color); border-radius: 0; padding: 4px 12px; font-weight: 500; }
 #selection-hint { font-size: 12px; line-height: 1.5; }
+.selection-feedback { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 5px; border: 1px solid var(--border-color); color: var(--btn-primary); background: var(--btn-blue); }
+.selection-feedback .ui-icon { width: 16px; height: 16px; }
+.selection-feedback > span { overflow-wrap: anywhere; }
+.selection-warning { color: #a05c09; background: transparent; border-color: transparent; }
+:root[data-theme="dark"] .selection-warning { color: #f4c06a; }
 .prompt-textarea { display: block; height: 120px; min-height: 120px; padding: 15px 14px; border-radius: 10px; font-size: 15px; line-height: 1.6; background: var(--bg-sidebar); }
 .prompt-textarea::placeholder { color: var(--text-muted); }
-.llm-history-btn { top: -38px; height: 28px; }
+.llm-history-btn { top: -38px; height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.llm-history-btn .ui-icon { width: 16px; height: 16px; }
 .prompt-actions { min-height: 40px; gap: 10px; }
 .llm-stats-container { margin-right: auto; gap: 8px; }
 .llm-stats { font-size: 11px; gap: 8px; }
@@ -130,7 +139,7 @@ select#llm-mode-select { border: 0; border-left: 1px solid var(--border-color); 
     body, body:has(.sidebar.collapsed) { grid-template-columns: minmax(0, 1fr); padding: 5px; gap: 6px; }
     .top-bar { grid-column: 1; padding: 5px; gap: 6px; }
     .toolbar-actions { gap: 4px; }
-    .tools-basic button { min-height: 32px; padding: 0 6px; font-size: 12px; gap: 4px; }
+    .tools-basic button { min-height: 32px; padding: 0 6px; font-size: 13px; gap: 4px; }
     .sidebar { position: absolute; grid-column: 1; grid-row: 2; top: 0; bottom: 5px; left: 0; height: auto; width: 250px; z-index: 55; box-shadow: 8px 12px 35px #182b4e25; }
     .sidebar.collapsed { width: 250px; visibility: hidden; }
     .main-content { grid-column: 1; gap: 6px; padding: 0; }

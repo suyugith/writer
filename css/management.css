@@ -73,6 +73,16 @@
 .management-modal .btn-cancel { border: 1px solid var(--border-color); background: var(--editor-bg); }
 .management-modal .btn-confirm { box-shadow: 0 3px 9px #3365ff18; }
 .management-modal .btn-confirm:disabled { color: var(--text-muted); box-shadow: none; }
+.btn-modal:has(.ui-icon), .ref-action-btn:has(.ui-icon), .ref-save-hint:has(.ui-icon), .config-active-badge:has(.ui-icon), .llm-error-label:has(.ui-icon) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn-modal .ui-icon, .ref-action-btn .ui-icon, .ref-save-hint .ui-icon, .config-active-badge .ui-icon, .llm-error-label .ui-icon, .history-star-btn .ui-icon, .record-status .ui-icon { width: 16px; height: 16px; }
+.modal-close-btn, .pane-add-button, .history-star-btn, .record-status { display: inline-flex; align-items: center; justify-content: center; }
+.modal-close-btn .ui-icon, .pane-add-button .ui-icon { width: 18px; height: 18px; }
+.history-star-btn.starred .ui-icon { fill: currentColor; }
+.ref-empty-icon .ui-icon { width: 44px; height: 44px; color: var(--text-muted); stroke-width: 1.5; }
+.record-status[aria-label="成功"] { color: #24834b; }
+.record-status[aria-label="失败"] { color: #d32f2f; }
+:root[data-theme="dark"] .record-status[aria-label="成功"] { color: #75d59b; }
+:root[data-theme="dark"] .record-status[aria-label="失败"] { color: #ff9292; }
 .management-modal .history-layout { gap: 14px; padding: 16px; flex: 1; min-height: 0; height: auto; background: var(--bg-main); }
 .skill-list-panel, #config-list-pane { flex: 0 0 260px; }
 .management-modal .modal-group { gap: 7px; }
@@ -82,6 +92,10 @@
 #tech-modal .tech-desc-textarea { min-height: 100px; background: var(--bg-main); }
 #tech-modal .history-item > div { width: 100%; }
 #tech-modal .tech-item-title { font-size: 13px; line-height: 1.6; }
+.skill-toggle { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); }
+.skill-toggle .ui-icon { width: 16px; height: 16px; }
+.skill-toggle.enabled { color: #24834b; }
+:root[data-theme="dark"] .skill-toggle.enabled { color: #75d59b; }
 #tech-modal .add-btn-container { position: sticky; bottom: 0; padding: 10px 0 0; margin-top: auto; background: var(--editor-bg); }
 .management-modal .modal-button-row-tech, .management-modal .modal-button-row-ref { margin-top: 0; padding-top: 12px; border-top: 1px solid var(--border-color); }
 #config-list-pane { overflow: hidden; padding: 14px; border: 1px solid var(--border-color); }
