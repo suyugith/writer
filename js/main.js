@@ -278,6 +278,7 @@ AI 会根据本次任务，优先采用匹配的已启用技能；您也可以�
     let currentRefIndex = -1;
 
     let techniques = [];
+    let deletedTechniqueIds = [];
     let currentTechIndex = -1;
     let interactionHistory = [];
 
@@ -300,7 +301,7 @@ AI 会根据本次任务，优先采用匹配的已启用技能；您也可以�
 ## 二、输出范围
 你的输出会被直接写入文档：
 - 全文修改：输出修改后的完整文章。除任务要求删除、合并、浓缩或改写的内容外，保留其他部分，不用“其余不变”等占位语代替。
-- 局部修改：只输出选区处理后的文本，不重复前后文，不扩展修改范围。选区可能只是半句话，注意与两侧的语法、标点和格式衔接。
+- 局部修改：只输出选区处理后的文本，不重复前后文，不扩展修改范围。选区可能只是半句话，注意与两侧的语法、标点和格式衔接。只有本次任务明确要求删除整个选区且无需替换文本时，输出专用标记 <delete_selected_text/>；不要用空响应表示删除，其他任务不得输出该标记。
 - 末尾追加：只输出新增正文，承接已有内容，不复述前文，不重新输出已有标题或开头；除非任务要求，不擅自结束整篇文章。
 
 只输出任务所需的文稿，不附加“好的”“以下是修改结果”、修改说明、思考过程或自我评价。
@@ -1638,13 +1639,10 @@ img { max-width: 100%; }
             item.onclick = () => selectTech(i);
 
             const topRow = document.createElement('div');
-            topRow.innerHTML = `<div class="tech-item-title">${tech.title}</div>`;
+            topRow.innerHTML = `<div class="tech-item-title">${escapeHtml(tech.title)}</div>`;
 
             const bottomRow = document.createElement('div');
-            bottomRow.style.display = 'flex';
-            bottomRow.style.alignItems = 'center';
-            bottomRow.style.justifyContent = 'flex-end';
-            bottomRow.style.gap = '10px';
+            bottomRow.className = 'skill-item-actions';
 
             const toggleBtn = document.createElement('button');
             toggleBtn.className = 'tech-item-btn skill-toggle' + (tech.enabled ? ' enabled' : '');
@@ -1665,6 +1663,15 @@ img { max-width: 100%; }
 
             bottomRow.appendChild(toggleBtn);
             bottomRow.appendChild(delBtn);
+            if (DEFAULT_TECHNIQUES.some(t => t.id === tech.id)) {
+                const restoreBtn = document.createElement('button');
+                restoreBtn.className = 'tech-item-btn';
+                restoreBtn.style.color = 'var(--text-main)';
+                restoreBtn.textContent = '恢复默认';
+                restoreBtn.title = '仅恢复此技能的名称、匹配条件和规则，保留启停状态';
+                restoreBtn.onclick = e => { e.stopPropagation(); restoreTechnique(tech.id); };
+                bottomRow.appendChild(restoreBtn);
+            }
 
             item.appendChild(topRow);
             item.appendChild(bottomRow);
@@ -1697,29 +1704,43 @@ img { max-width: 100%; }
         else if (currentTechIndex === -1 || currentTechIndex >= techniques.length) selectTech(0);
     }
 
-    async function toggleTechEnabled(index) {
-        if (index >= 0 && techniques[index]) {
-            techniques[index].enabled = !techniques[index].enabled;
-            await dbSet('writer_techniques', techniques);
-            renderTechList();
+    async function commitTechniques(next, deleted = deletedTechniqueIds) {
+        try {
+            await dbSet('writer_techniques', [...next, ...deleted.map(id => ({ id, deleted: true }))]);
+            techniques = next;
+            deletedTechniqueIds = [...deleted];
+            return true;
+        } catch (error) {
+            await showAlert('写作技能保存失败，原设置已保留。\n' + error.message);
+            return false;
         }
     }
 
+    async function toggleTechEnabled(index) {
+        if (!techniques[index]) return;
+        const next = techniques.map((t, i) => i === index ? { ...t, enabled: !t.enabled } : t);
+        if (await commitTechniques(next)) renderTechList();
+    }
+
     async function deleteTechFromList(index) {
-        if (index >= 0 && techniques[index]) {
-            const ok = await showConfirm(`确定要删除技能「${techniques[index].title}」吗？`);
-            if (ok) {
-                techniques.splice(index, 1);
-                await dbSet('writer_techniques', techniques);
-                if (currentTechIndex === index) {
-                    currentTechIndex = techniques.length > 0 ? 0 : -1;
-                } else if (currentTechIndex > index) {
-                    currentTechIndex--;
-                }
-                renderTechList();
-                selectTech(currentTechIndex);
-            }
-        }
+        const tech = techniques[index];
+        if (!tech || !await showConfirm('确定要删除技能「' + tech.title + '」吗？')) return;
+        const actualIndex = techniques.findIndex(t => t.id === tech.id);
+        if (actualIndex < 0) return;
+        const deleted = DEFAULT_TECHNIQUES.some(t => t.id === tech.id)
+            ? [...new Set([...deletedTechniqueIds, tech.id])] : deletedTechniqueIds;
+        if (!await commitTechniques(techniques.filter(t => t.id !== tech.id), deleted)) return;
+        if (currentTechIndex === actualIndex) currentTechIndex = techniques.length ? 0 : -1;
+        else if (currentTechIndex > actualIndex) currentTechIndex--;
+        renderTechList();
+        selectTech(currentTechIndex);
+    }
+
+    async function restoreTechnique(id) {
+        const def = DEFAULT_TECHNIQUES.find(t => t.id === id);
+        if (!def || !await showConfirm('恢复「' + def.title + '」的最新默认规则？仅此技能的自定义内容会被替换，启停状态保留。')) return;
+        const next = techniques.map(t => t.id === id ? { ...def, enabled: t.enabled, customized: false } : t);
+        if (await commitTechniques(next)) { renderTechList(); selectTech(currentTechIndex); }
     }
 
     function selectTech(index) {
@@ -1756,31 +1777,32 @@ img { max-width: 100%; }
         const condition = document.getElementById('tech-condition').value.trim();
         const desc = document.getElementById('tech-desc').value.trim();
 
+        const next = techniques.map(t => ({ ...t }));
+        let nextIndex = currentTechIndex;
         if (currentTechIndex === -1) {
-            const newTech = { id: Date.now(), title: title, condition: condition, description: desc, enabled: true };
-            techniques.push(newTech);
-            currentTechIndex = techniques.length - 1;
-        } else if (currentTechIndex >= 0 && techniques[currentTechIndex]) {
-            const tech = techniques[currentTechIndex];
-            tech.title = title;
-            tech.condition = condition;
-            tech.description = desc;
+            let id = Date.now();
+            while (next.some(t => t.id === id) || deletedTechniqueIds.includes(id)) id++;
+            next.push({ id, title, condition, description: desc, enabled: true });
+            nextIndex = next.length - 1;
+        } else if (next[currentTechIndex]) {
+            const tech = next[currentTechIndex];
+            Object.assign(tech, { title, condition, description: desc });
+            const def = DEFAULT_TECHNIQUES.find(t => t.id === tech.id);
+            if (def) {
+                tech.customized = !sameTechniqueContent(tech, def);
+                if (!tech.customized) tech.revision = def.revision;
+            }
         }
-        await dbSet('writer_techniques', techniques);
+        if (!await commitTechniques(next)) return;
+        currentTechIndex = nextIndex;
         renderTechList();
         await showAlert('写作技能已保存！');
     }
 
     async function resetTechniques() {
-		const userModified = techniques.filter(t => t.id > 100);
-		// 直接利用 userModified.length 进行判断，且内部的三元表达式可以简化
-		const msg = userModified.length > 0 ?
-			`将删除所有自定义修改（${userModified.length} 个自定义技能），恢复为系统自带的 6 个技能。确定重置吗？` :
-			'将放弃所有修改，恢复为系统自带的默认设置。确定重置吗？';
-        const ok = await showConfirm(msg);
+        const ok = await showConfirm('将放弃所有技能修改、删除自定义技能并恢复已删除的内置技能，重置为系统自带的 ' + DEFAULT_TECHNIQUES.length + ' 个技能。确定重置吗？');
         if (!ok) return;
-        techniques = DEFAULT_TECHNIQUES.map(t => ({ ...t }));
-        await dbSet('writer_techniques', techniques);
+        if (!await commitTechniques(DEFAULT_TECHNIQUES.map(t => ({ ...t, customized: false })), [])) return;
         currentTechIndex = -1;
         document.getElementById('tech-title').value = '';
         document.getElementById('tech-condition').value = '';
@@ -2020,27 +2042,11 @@ img { max-width: 100%; }
             syncAppConfig();
             if (savedInteraction) interactionHistory = savedInteraction;
 
-            if (savedTech && savedTech.length > 0) {
-                techniques = savedTech;
-                let needSave = false;
-                for (const defTech of DEFAULT_TECHNIQUES) {
-                    const existTech = techniques.find(t => t.id === defTech.id);
-                    if (existTech) {
-                        if (existTech.description !== defTech.description) {
-                            existTech.description = defTech.description;
-                            needSave = true;
-                        }
-                    } else {
-                        techniques.push({ ...defTech });
-                        needSave = true;
-                    }
-                }
-                if (needSave) await dbSet('writer_techniques', techniques);
-            } else {
-                techniques = DEFAULT_TECHNIQUES.map(t => ({ ...t }));
-                await dbSet('writer_techniques', techniques);
+            const merged = mergeWritingTechniques(savedTech);
+            if (!await commitTechniques(merged.techniques, merged.deletedIds)) {
+                throw new Error('无法保存写作技能升级');
             }
-        } catch (error) { console.error("Failed to load local data:", error); }
+        } catch (error) { console.error("Failed to load local data:", error); throw error; }
     }
 
     // Fix #11: openModal 使用 classList 替代 style.display
@@ -2617,8 +2623,8 @@ img { max-width: 100%; }
             const s = llmSubmissions[i];
             const item = document.createElement('div');
             item.className = 'llm-history-item';
-            const statusName = s.status === 'success' ? 'enabled' : (s.status === 'error' ? 'error' : 'history');
-            const statusLabel = s.status === 'success' ? '成功' : (s.status === 'error' ? '失败' : '处理中');
+            const statusName = s.status === 'success' ? 'enabled' : (['error', 'incomplete'].includes(s.status) ? 'error' : 'history');
+            const statusLabel = ({ success: '成功', error: '失败', incomplete: '未采用', aborted: '已停止' })[s.status] || '处理中';
             const timeStr = new Date(s.timestamp).toLocaleString();
             const durStr = s.duration ? `${s.duration}ms` : '-';
             const tokens = `${s.inputTokens || 0} → ${s.outputTokens || 0} tokens`;
@@ -2637,6 +2643,22 @@ img { max-width: 100%; }
                 </div>
                 ${rangePart}
                 <div class="record-prompt">${escapeHtml(s.prompt || '')}</div>`;
+            if (s.error) {
+                const reason = document.createElement('div');
+                reason.className = 'record-meta';
+                reason.textContent = s.error;
+                item.appendChild(reason);
+            }
+            if (s.draftText) {
+                const details = document.createElement('details');
+                const summary = document.createElement('summary');
+                summary.textContent = '查看未采用的生成草稿';
+                const draft = document.createElement('pre');
+                draft.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;max-height:300px;overflow:auto;';
+                draft.textContent = s.draftText;
+                details.append(summary, draft);
+                item.appendChild(details);
+            }
             container.appendChild(item);
         }
     }
@@ -2676,9 +2698,9 @@ img { max-width: 100%; }
         } else {
             // custom_rewrite 与其他三个修改模式都强制进入"局部修改"模式
             newValue = 'local';
-            if (mode === 'rewrite') promptInput.value = '把当前内容展开描写，补充详细内容，或者补充具体例子';
-            else if (mode === 'summarize') promptInput.value = '对当前内容提炼主要内容和观点，编写更概况性的内容';
-            else if (mode === 'polish') promptInput.value = '请对文本进行精修润色。要求：纠正所有的错别字、标点错误和语法问题，提升词汇的高级感与专业度，使行文更加自然，严格保持原文主旨不变。';
+            if (mode === 'rewrite') promptInput.value = '请围绕选中文本补充必要的解释、过程、条件或细节，增加有效信息并保持上下文衔接；非虚构内容不得新增无依据的事实，假设性例子须明确标识。';
+            else if (mode === 'summarize') promptInput.value = '对当前内容提炼主要内容和观点，编写更概括性的内容';
+            else if (mode === 'polish') promptInput.value = '请润色选中文本，修正错字、标点、语法和不自然的衔接；保留原意、事实、语气及作者特点，以准确、清楚、自然为目标。';
             else if (mode === 'custom_rewrite') promptInput.value = '对当前选择段落进行修改，具体要求:';
         }
 
@@ -2836,6 +2858,7 @@ img { max-width: 100%; }
         try { preSubmitSelection = { start: editor.selectionStart, end: editor.selectionEnd }; } catch (e) {}
 
         abortController = new AbortController();
+        const requestController = abortController;
         lastLLMReq = JSON.stringify(ctx.payload, null, 2);
         lastLLMRes = "";
         lastLLMErr = "";
@@ -2849,7 +2872,7 @@ img { max-width: 100%; }
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${appConfig.key}`, 'Accept': 'text/event-stream' },
                 body: lastLLMReq,
-                signal: abortController.signal
+                signal: requestController.signal
             });
 
             if (!response.ok) {
@@ -2859,47 +2882,71 @@ img { max-width: 100%; }
 
             const streamResult = await processSSEStream(response.body.getReader(), ctx);
 
-            saveState(editor.value);
-            updateUI();
-
+            if (requestController.signal.aborted) throw Object.assign(new Error('生成已停止'), { name: 'AbortError' });
+            if (streamResult.deleteSelection) {
+                const confirmed = await showConfirm('本次生成要求删除整个选区且不替换为其他文字。确认删除所选内容吗？');
+                if (!confirmed || requestController.signal.aborted) throw Object.assign(new Error('已取消删除，原文保留'), { name: 'AbortError' });
+                editor.value = ctx.baseTextPre + ctx.baseTextPost;
+                editor.setSelectionRange(ctx.baseTextPre.length, ctx.baseTextPre.length);
+            }
+            const previousArticle = JSON.parse(JSON.stringify(articleLibrary.current));
+            articleLibrary.save(editor.value);
+            bindActiveArticle();
             interactionHistory.push({ user: promptInput, assistant: streamResult.finalText });
             if (interactionHistory.length > 10) interactionHistory.shift();
-            await persistArticles();
-
             const duration = Date.now() - startTime;
+            submission.status = 'success';
+            submission.duration = duration;
+            submission.inputTokens = streamResult.actualInputTokens;
+            submission.outputTokens = streamResult.outputTokens;
+            // Persist the accepted version, interaction and submission together.
+            abortController = null;
+            if (!await persistArticles()) {
+                for (const key of ['history', 'times', 'stars', 'index', 'title', 'updatedAt', 'interactions']) {
+                    articleLibrary.current[key] = previousArticle[key];
+                }
+                bindActiveArticle();
+                throw Object.assign(new Error('生成结果保存失败，原文已恢复'), {
+                    draftText: streamResult.finalText,
+                    finishReason: streamResult.finishReason,
+                    outputTokens: streamResult.outputTokens,
+                    actualInputTokens: streamResult.actualInputTokens
+                });
+            }
+            updateUI();
+
             let displayReasoning = streamResult.rawReasoningText ? `\n\n【独立思考过程 (reasoning_content)】\n${streamResult.rawReasoningText}` : '';
             lastLLMRes = `【SSE 流式传输成功】\n最终提取文本字数：${streamResult.finalText.length}\n最终生成Tokens：${streamResult.outputTokens}${displayReasoning}\n\n【底层原始完整输出 (content)】\n${streamResult.rawOutputText}`;
 
             statusIcon.className = 'status-icon success';
             statusIcon.title = "请求成功，点击查看详情";
             document.getElementById('llm-stats').innerHTML = `<span>耗时: ${duration}ms</span> | <span>输入: ${streamResult.actualInputTokens} Tokens</span> | <span>输出: ${streamResult.outputTokens} Tokens</span>`;
-            // 更新提交历史记录
-            submission.status = 'success';
-            submission.duration = duration;
-            submission.inputTokens = streamResult.actualInputTokens;
-            submission.outputTokens = streamResult.outputTokens;
-            await persistArticles();
 
         } catch (error) {
             const duration = Date.now() - startTime;
-            lastLLMErr = error.toString();
-            statusIcon.className = 'status-icon error';
-            statusIcon.title = "请求失败，点击查看详情";
-            document.getElementById('llm-stats').innerHTML = `<span style="color:red;">耗时: ${duration}ms (失败)</span> | <span>输入: ~${ctx.estimatedTokens} Tokens</span> | <span>输出: 0 Tokens</span>`;
-            // 标记提交失败
-            submission.status = 'error';
+            const aborted = error.name === 'AbortError' || requestController.signal.aborted;
+            submission.status = aborted ? 'aborted' : (error.draftText !== undefined ? 'incomplete' : 'error');
             submission.duration = duration;
-            submission.error = lastLLMErr;
-            await persistArticles();
-            // 异常时也回滚到提交前快照（用户未完成的修改痕迹清除）
-            if (editorPreSubmitSnapshot !== null && abortController !== null) {
-                // 区分"用户主动停止"和"网络/HTTP 错误"——用户停止时 abortController 已被 stopLLM 置空
+            submission.error = error.message || String(error);
+            if (error.draftText !== undefined) {
+                submission.draftText = error.draftText;
+                submission.finishReason = error.finishReason;
+                submission.inputTokens = error.actualInputTokens || ctx.estimatedTokens;
+                submission.outputTokens = error.outputTokens || 0;
+                lastLLMRes = error.draftText ? '【未采用的生成草稿】\n' + error.draftText : '未收到有效正文';
+            }
+            lastLLMErr = submission.error;
+            statusIcon.className = aborted ? 'status-icon idle' : 'status-icon error';
+            statusIcon.title = aborted ? '已停止，原文保留' : '未采用生成结果，原文保留；点击查看详情';
+            document.getElementById('llm-stats').textContent = '耗时: ' + duration + 'ms | ' + (aborted ? '已停止' : '未采用生成结果');
+            if (editorPreSubmitSnapshot !== null) {
                 editor.value = editorPreSubmitSnapshot;
                 if (preSubmitSelection) {
-                    try { editor.setSelectionRange(preSubmitSelection.start, preSubmitSelection.end); } catch (e) {}
+                    try { editor.setSelectionRange(preSubmitSelection.start, preSubmitSelection.end); } catch (_) {}
                 }
-                updateUI();
             }
+            updateUI();
+            await persistArticles();
         } finally {
             setLLMUIState(false);
             abortController = null;
@@ -3029,105 +3076,97 @@ ${techStr}`;
 
     async function processSSEStream(reader, ctx) {
         const decoder = new TextDecoder('utf-8');
-        let buffer = '', pendingData = '';
-        let lastRenderTime = 0;
-
+        const originalText = editor.value;
+        const originalSelection = { start: editor.selectionStart, end: editor.selectionEnd };
+        let buffer = '', lastRenderTime = 0, streamDone = false, finishReason = null;
         const state = {
-            rawOutputText: '',
-            rawReasoningText: '',
-            cleanOutputText: '',
-            lastProcessedIndex: 0,
-            isThinking: false,
-            hasFinishedThinking: false,
-            outputTokens: 0,
-            actualInputTokens: ctx.estimatedTokens
+            rawOutputText: '', rawReasoningText: '', cleanOutputText: '',
+            lastProcessedIndex: 0, isThinking: false, hasFinishedThinking: false,
+            outputTokens: 0, actualInputTokens: ctx.estimatedTokens
         };
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-
-            let match;
-            let isStreamDone = false;
-            while ((match = /\r?\n\r?\n/.exec(buffer)) !== null) {
-                let chunk = buffer.slice(0, match.index).trim();
-                buffer = buffer.slice(match.index + match[0].length);
-                if (!chunk) continue;
-
-                let chunkDataStr = chunk.replace(/(^|\n)data:\s*/gi, '').trim();
-                if (chunkDataStr === '[DONE]') { isStreamDone = true; break; }
-
-                if (chunkDataStr) {
-                    pendingData += chunkDataStr;
-                    try {
-                        const data = JSON.parse(pendingData);
-                        pendingData = '';
-
-                        if (data.usage) {
-                            if (data.usage.completion_tokens) state.outputTokens = data.usage.completion_tokens;
-                            if (data.usage.prompt_tokens) state.actualInputTokens = data.usage.prompt_tokens;
-                        }
-                        if (data.choices && data.choices[0].delta) {
-                            const delta = data.choices[0].delta;
-                            if (delta.reasoning_content) state.rawReasoningText += delta.reasoning_content;
-                            if (delta.content) updateThinkStateMachine(state, delta.content);
-                        }
-                    } catch (e) { /* JSON不完整，等待下一个块拼接 */ }
-                }
-            }
-            if (isStreamDone) break;
-
-            const now = Date.now();
-            if (now - lastRenderTime >= 33) {
-                editor.value = ctx.baseTextPre + state.cleanOutputText + ctx.baseTextPost;
-
-                if (autoScrollEnabled) {
-                    if (ctx.mode === 'local' && ctx.baseTextPre) {
-                        const targetText = ctx.baseTextPre + state.cleanOutputText;
-                        const targetScroll = getScrollPositionForText(targetText);
-                        editor.scrollTop = Math.max(0, targetScroll - 80);
-                    } else {
-                        editor.scrollTop = editor.scrollHeight;
-                    }
-                }
-                lastRenderTime = now;
-            }
-        }
-
-        if (buffer.trim()) {
-            let chunkDataStr = buffer.replace(/(^|\n)data:\s*/gi, '').trim();
-            if (chunkDataStr && chunkDataStr !== '[DONE]') {
-                try {
-                    const data = JSON.parse(chunkDataStr);
-                    if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
-                        updateThinkStateMachine(state, data.choices[0].delta.content);
-                    }
-                } catch (e) {}
-            }
-        }
-
-        if (state.lastProcessedIndex < state.rawOutputText.length) {
-            if (!state.isThinking) {
+        const flushText = () => {
+            if (state.lastProcessedIndex < state.rawOutputText.length && !state.isThinking) {
                 state.cleanOutputText += state.rawOutputText.substring(state.lastProcessedIndex);
             }
             state.lastProcessedIndex = state.rawOutputText.length;
-        }
-
-        const finalCleanText = state.cleanOutputText.trimStart();
-        editor.value = ctx.baseTextPre + finalCleanText + ctx.baseTextPost;
-        editor.focus();
-        const endCursor = ctx.baseTextPre.length + finalCleanText.length;
-        editor.setSelectionRange(endCursor, endCursor);
-
-        state.outputTokens = state.outputTokens || Math.floor((state.rawOutputText.length + state.rawReasoningText.length) * 0.8);
-        return {
-            finalText: finalCleanText,
-            rawOutputText: state.rawOutputText,
-            rawReasoningText: state.rawReasoningText,
-            outputTokens: state.outputTokens,
-            actualInputTokens: state.actualInputTokens
         };
+        const consumeEvent = event => {
+            const dataText = event.split(/\r?\n/).filter(line => line.startsWith('data:'))
+                .map(line => line.slice(5).replace(/^ /, '')).join('\n').trim();
+            if (!dataText) return; // SSE comments, event names and keep-alive messages.
+            if (dataText === '[DONE]') { streamDone = true; return; }
+            let data;
+            try { data = JSON.parse(dataText); }
+            catch (_) { throw new Error('生成响应格式不完整，原文已保留'); }
+            if (data.error) throw new Error(data.error.message || '生成服务返回错误');
+            if (data.usage) {
+                if (Number.isFinite(data.usage.completion_tokens)) state.outputTokens = data.usage.completion_tokens;
+                if (Number.isFinite(data.usage.prompt_tokens)) state.actualInputTokens = data.usage.prompt_tokens;
+            }
+            const choice = data.choices?.find(c => c.index === 0 || c.index === undefined);
+            if (!choice) return;
+            if (choice.finish_reason != null) finishReason = choice.finish_reason;
+            const delta = choice.delta || {};
+            if (delta.reasoning_content) state.rawReasoningText += delta.reasoning_content;
+            if (delta.content) updateThinkStateMachine(state, delta.content);
+            if (delta.refusal) throw new Error('模型未能完成本次写作，原文已保留');
+        };
+        try {
+            while (!streamDone) {
+                const { done, value } = await reader.read();
+                if (done) { buffer += decoder.decode(); break; }
+                buffer += decoder.decode(value, { stream: true });
+                let match;
+                while (!streamDone && (match = /\r?\n\r?\n/.exec(buffer))) {
+                    const event = buffer.slice(0, match.index);
+                    buffer = buffer.slice(match.index + match[0].length);
+                    consumeEvent(event);
+                }
+                const now = Date.now();
+                if (state.cleanOutputText && !state.cleanOutputText.trimStart().startsWith('<delete_') && now - lastRenderTime >= 33) {
+                    editor.value = ctx.baseTextPre + state.cleanOutputText + ctx.baseTextPost;
+                    if (autoScrollEnabled) {
+                        editor.scrollTop = ctx.mode === 'local' && ctx.baseTextPre
+                            ? Math.max(0, getScrollPositionForText(ctx.baseTextPre + state.cleanOutputText) - 80)
+                            : editor.scrollHeight;
+                    }
+                    lastRenderTime = now;
+                }
+            }
+            if (!streamDone && buffer.trim()) consumeEvent(buffer);
+            flushText();
+            if (finishReason && finishReason !== 'stop') {
+                throw new Error(finishReason === 'length' ? '生成内容达到长度限制，未替换原文，请查看草稿' : '生成未正常完成，未替换原文');
+            }
+            if (!streamDone && finishReason !== 'stop') throw new Error('连接结束但未收到完成标记，未替换原文，请查看草稿');
+            if (state.isThinking) throw new Error('生成在思考阶段中断，未替换原文');
+            if (!state.cleanOutputText.trim()) throw new Error('未收到有效正文，原文已保留；空响应不会删除内容');
+            const deleteSelection = state.cleanOutputText.trim() === '<delete_selected_text/>';
+            if (deleteSelection && ctx.mode !== 'local') throw new Error('删除选区标记只能用于局部修改，原文已保留');
+            const finalText = deleteSelection ? '' : state.cleanOutputText; // Preserve meaningful whitespace.
+            editor.value = deleteSelection ? originalText : ctx.baseTextPre + finalText + ctx.baseTextPost;
+            if (!deleteSelection) {
+                editor.focus();
+                const cursor = ctx.baseTextPre.length + finalText.length;
+                editor.setSelectionRange(cursor, cursor);
+            }
+            return { finalText, deleteSelection, finishReason,
+                rawOutputText: state.rawOutputText, rawReasoningText: state.rawReasoningText,
+                outputTokens: state.outputTokens || Math.floor((state.rawOutputText.length + state.rawReasoningText.length) * 0.8),
+                actualInputTokens: state.actualInputTokens };
+        } catch (error) {
+            flushText();
+            error.draftText = state.cleanOutputText;
+            error.finishReason = finishReason;
+            error.outputTokens = state.outputTokens;
+            error.actualInputTokens = state.actualInputTokens;
+            editor.value = originalText;
+            try { editor.setSelectionRange(originalSelection.start, originalSelection.end); } catch (_) {}
+            throw error;
+        } finally {
+            try { await reader.cancel(); } catch (_) {}
+            try { reader.releaseLock(); } catch (_) {}
+        }
     }
 
     function updateThinkStateMachine(state, newContent) {

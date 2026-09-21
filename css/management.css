@@ -92,6 +92,9 @@
 #tech-modal .tech-desc-textarea { min-height: 100px; background: var(--bg-main); }
 #tech-modal .history-item > div { width: 100%; }
 #tech-modal .tech-item-title { font-size: 13px; line-height: 1.6; }
+#tech-modal .skill-item-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: nowrap; gap: 4px; }
+#tech-modal .skill-item-actions .tech-item-btn { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 3px; padding: 4px 2px; min-height: 28px; font-size: 12px; line-height: 1; white-space: nowrap; }
+#tech-modal .skill-item-actions .ui-icon { width: 14px; height: 14px; }
 .skill-toggle { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); }
 .skill-toggle .ui-icon { width: 16px; height: 16px; }
 .skill-toggle.enabled { color: #24834b; }
